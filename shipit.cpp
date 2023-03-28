@@ -7,37 +7,40 @@
 #include <algorithm>
 
 std::random_device dev;
-std::mt19937 rng{dev()};
-std::normal_distribution<> norm_g(0.0, 1.0);
 
 class TRng {
 public:
-    TRng(int seed_val) {
-        rng.seed(seed_val);
-    };
 
-    double nrand() {
+    std::mt19937 rng;
+    std::normal_distribution<> norm_g;
+
+    TRng(int seed_val): rng(dev()), norm_g(0.0, 1.0) {
+        rng.seed(seed_val);
+    }
+
+    double NormalRandom() {
         return norm_g(rng);
-    };
+    }
 };
 
-
-double Sqr(double& val) {
+inline
+double Sqr(double val) {
     return val * val;
 }
 
 
 void Help() {
     printf(
-        "Usage: echo method seed steps base_mean base_sigma measurement_sigma param1 param2 ... | ./shipit\n"
-        "  method: 0 = moss, 5 = p-value, 6 = g-value\n"
-        "  seed = seed  for random generator\n"
-        "  steps = number of steps; typical value is 1000000\n"
+        "Usage: echo method seed weeks trials base_mean base_sigma measurement_sigma param1 param2 ... | ./shipit\n"
+        "  method: 1 = moss, 5 = p-value, 6 = g-value with ksi=0, 7 = g-value with ksi=manual\n"
+        "  seed = seed for random generator\n"
+        "  weeks = number of steps; typical value is 1000000\n"
         "  base_mean = mean profit of a random idea; typical value is -1\n"
-        "  base_mean = sigma = sqrt(D) of profit for ideas in the pool; typical value is 1\n"
-        "  measurement_sigma = sigma of one measurement (one step); typical value is 8\n"
+        "  base_sigma = sigma = sqrt(D) of profit for ideas in the pool; typical value is 1\n"
+        "  measurement_sigma = sigma of one measurement (aka error); typical value is 8\n"
         "Example:\n"
-        " echo \"6 123 100000 -1 1 8\" | ./shipit\n"
+        "  echo \"7 123 100000 25 -1 1 8\" | ./shipit\n\n"
+        "It outputs two numbers: avg profit and standard deviation over trials.\n"
     );
 }
 
@@ -50,12 +53,11 @@ public:
 
     TIdea(double Mean, double Sigma, double Weight): Mean(Mean), Sigma(Sigma), Weight(Weight) {
 
-
     };
-    
+
     /* One week experiment updates prior distribution */
     void ExploreForAWeek(TRng &rng, double measurementSigma, double measurementWeight) {
-        double thisWeekProfit = TrueProfit + measurementSigma * rng.nrand();
+        double thisWeekProfit = TrueProfit + measurementSigma * rng.NormalRandom();
         Mean = (Mean * Weight + thisWeekProfit * measurementWeight) / (Weight + measurementWeight);
         Weight += measurementWeight;
         Sigma = 1.0 / sqrt(Weight);
@@ -66,7 +68,7 @@ public:
         Mean = pool.Mean;
         Sigma = pool.Sigma;
         Weight = pool.Weight;
-        TrueProfit = Mean + Sigma * rng.nrand();
+        TrueProfit = Mean + Sigma * rng.NormalRandom();
         Weeks = 0;
     }
 
@@ -81,6 +83,7 @@ public:
 struct TParams {
     double ShipSigmas = 0.0;
     double StopSigmas = 0.0;
+    double Sigma0 = 0.0;
     double ShipMul = 0.0;
     double StopMul = 0.0;
     double Epsilon = 0.0;
@@ -140,7 +143,11 @@ ComplexIndex(TIdea& idea, TParams& params) {
 
 /* Ship experiments by pValue (-mean / sigma < StopSigmas to stop, and mean / sigma > ShipSigmas to ship) */
 static TResult
-EvaluateBanditsPValue(TRng &rng, int weeks, int trials, double baseMean, double baseSigma, double measurementSigma, TParams& params) {
+EvaluateBanditsPValue(
+    TRng &rng, int weeks, int trials,
+    double baseMean, double baseSigma, double measurementSigma,
+    TParams& params
+) {
     double totalProfit = 0;
     double totalProfitSqr = 0;
     TResult result;
@@ -156,7 +163,7 @@ EvaluateBanditsPValue(TRng &rng, int weeks, int trials, double baseMean, double 
             idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
             if (-(idea.Mean - params.S * baseIdea.Mean) >  (idea.Sigma - params.S * baseIdea.Sigma) * params.StopSigmas || (idea.Weeks > params.MaxTestWeeks && idea.Mean < 0)) {
                 idea.ReplaceWithNew(rng, baseIdea);
-            } else if (idea.Mean > idea.Sigma * params.ShipSigmas || (idea.Weeks > params.MaxTestWeeks && idea.Mean > 0)) {
+            } else if (idea.Mean > (idea.Sigma - params.Sigma0) * params.ShipSigmas || (idea.Weeks > params.MaxTestWeeks && idea.Mean > 0)) {
                 shippedProfit += idea.TrueProfit;
                 idea.ReplaceWithNew(rng, baseIdea);
             } // else continue exploring the idea
@@ -173,7 +180,11 @@ EvaluateBanditsPValue(TRng &rng, int weeks, int trials, double baseMean, double 
 /* Ship experiment by Index function. Current winner with indexFn == GValueIndex */
 template <typename TIndexFn>
 static TResult
-EvaluateBanditsGValue(TRng &rng, TIndexFn indexFn, int weeks, int trials, double baseMean, double baseSigma, double measurementSigma, TParams& params) {
+EvaluateBanditsGValue(
+    TRng &rng, TIndexFn indexFn, int weeks, int trials,
+    double baseMean, double baseSigma, double measurementSigma,
+    TParams& params
+) {
     double totalProfit = 0;
     double totalProfitSqr = 0;
     TResult result;
@@ -209,7 +220,11 @@ EvaluateBanditsGValue(TRng &rng, TIndexFn indexFn, int weeks, int trials, double
 /* same as previous with debug info */
 template <typename TIndexFn>
 static TResult
-EvaluateBanditsGValueDebug(TRng &rng, TIndexFn indexFn, int weeks, int trials, double baseMean, double baseSigma, double measurementSigma, TParams& params) {
+EvaluateBanditsGValueDebug(
+    TRng &rng, TIndexFn indexFn, int weeks, int trials,
+    double baseMean, double baseSigma, double measurementSigma,
+    TParams& params
+) {
     double totalProfit = 0;
     double totalProfitSqr = 0;
     TResult result;
@@ -307,9 +322,20 @@ EvaluateBanditsGValueDebug(TRng &rng, TIndexFn indexFn, int weeks, int trials, d
     return result;
 }
 
+/*
+Stop if
+    ideaIndex <= params.StopMul * baseIndex
+    || idea.Mean >= params.ShipMul * idea.Sigma
+    || idea.Weeks > params.MaxTestWeeks
+And ship if idea.Mean >= 0.
+*/
 template <typename TIndexFn>
 static TResult
-EvaluateBanditsCustom(TRng &rng, TIndexFn indexFn, int weeks, int trials, double baseMean, double baseSigma, double measurementSigma, TParams& params) {
+EvaluateBanditsCustom(
+    TRng &rng, TIndexFn indexFn, int weeks, int trials,
+    double baseMean, double baseSigma, double measurementSigma,
+    TParams& params
+) {
     double totalProfit = 0;
     double totalProfitSqr = 0;
     TResult result;
@@ -341,9 +367,20 @@ EvaluateBanditsCustom(TRng &rng, TIndexFn indexFn, int weeks, int trials, double
     return result;
 }
 
+
+/*
+    Same as EvaluateBanditsCustom, but in stop condition we have
+        idea.Mean >= params.ShipMul * ideaIndex
+    instead of
+        idea.Mean >= params.ShipMul * idea.Sigma
+*/
 template <typename TIndexFn>
 static TResult
-EvaluateBanditsCustom2(TRng &rng, TIndexFn indexFn, int weeks, int trials, double baseMean, double baseSigma, double measurementSigma, TParams& params) {
+EvaluateBanditsCustom2(
+    TRng &rng, TIndexFn indexFn, int weeks, int trials,
+    double baseMean, double baseSigma, double measurementSigma,
+    TParams& params
+) {
     double totalProfit = 0;
     double totalProfitSqr = 0;
     TResult result;
@@ -377,7 +414,13 @@ EvaluateBanditsCustom2(TRng &rng, TIndexFn indexFn, int weeks, int trials, doubl
 
 
 int
-main() {
+main(int argc, char* argv[]) {
+
+    if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'h') {
+        Help();
+        return 0;
+    }
+
     int method, seed, weeks, trials;
     double baseMean, baseSigma, measurementSigma;
     TResult result;
@@ -390,18 +433,17 @@ main() {
         Help();
         return 1;
     }
-    auto rng = TRng(seed);
+
+    TRng rng = TRng(seed || rand());
 
     if (trials <= 1) {
         fprintf(stderr, "WARN: trials should be >= 2");
         trials = 2;
     }
     // params.MaxTestWeeks =  Max(2, (int)(0.5 + 1.673 * Sqr(0.72 + measurementSigma / baseSigma)));
-    params.MaxTestWeeks = 100000; // fixed
-
-    if (seed == 0) {
-        rng = TRng(rand());
-    }
+    params.MaxTestWeeks = 100000.0; // fixed
+    params.Ksi = 0.0;
+    params.Sigma0 = 0.0;
 
     if (method == 1) { // Moss Index with shipCnd = (mean > c * sigma)
         params.S = 1.0;
@@ -409,14 +451,15 @@ main() {
         params.ShipMul = 0.75;
         params.StopMul = 1.0;
         scanf("%lf%lf%lf%lf%lf", &params.S, &params.L, &params.ShipMul, &params.StopMul, &params.Ksi);
-        result = EvaluateBanditsCustom(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 2) { // MossIndex with shipCnd = (mean > c * Index)
-        params.S = 1.0;
-        params.L = 2.0;
-        params.ShipMul = 0.75;
         params.StopMul = 1.0;
-        scanf("%lf%lf%lf%lf%lf", &params.S, &params.L, &params.ShipMul, &params.StopMul, &params.Ksi);
-        result = EvaluateBanditsCustom2(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+        result = EvaluateBanditsCustom(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+    } else if (method == 2) { // method = 1 && StopMul == 1.0 && S == ShipMul
+        params.S = 0.75;
+        params.L = 2.0;
+        scanf("%lf%lf%lf", &params.S, &params.L, &params.Ksi);
+        params.StopMul = 1.0;
+        params.ShipMul = params.S;
+        result = EvaluateBanditsCustom(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
     } else if (method == 3) { // pValue: stopCnd = ( mean < - StopSigmas * sigma), shipCnd = (mean > ShipSigmas * sigma)
         params.ShipSigmas = 0.3;
         params.StopSigmas = 1.0;
@@ -431,18 +474,44 @@ main() {
         params.ShipSigmas = 0.5;
         params.StopSigmas = 1.9;
         params.S = 1.0;
-        scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.S);
+        scanf("%lf%lf", &params.ShipSigmas, &params.StopSigmas);
         result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 6) { // GValueIndex for stop and ship
+    } else if (method == 51) { // same as prev, with base at point (S * base.Mean, S * base.Sigma)
+        params.ShipSigmas = 0.5;
+        params.StopSigmas = 1.9;
+        params.S = 1.0;
+        scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.Sigma0);
+        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+    } else if (method == 52) { // same as prev, with intersection at mean = 0
+        params.S = 1.0;
+        double addShip = 0.0;
+        scanf("%lf%lf", &params.StopSigmas, &addShip);
+        params.ShipSigmas = params.StopSigmas + addShip;
+        params.Sigma0 = (baseMean + params.StopSigmas * baseSigma) / params.StopSigmas;
+        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+    } else if (method == 6) { // GValueIndex for stop and ship; params.Ksi = 0
         params.S = 1.0;
         params.ShipMul = 0.75;
-        params.Ksi = 0.0; // fixed;
+        params.Ksi = 0.0;
         scanf("%lf%lf", &params.ShipMul, &params.S);
         result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 7) { // GValueIndex for stop and ship and debug info
+    } else if (method == 7) { // GValueIndex for stop and ship; params.Ksi = manual
         params.S = 1.0;
         params.ShipMul = 0.75;
-        params.Ksi = 0; // fixed;
+        params.Ksi = 0.015;
+        scanf("%lf%lf%lf", &params.ShipMul, &params.S, &params.Ksi);
+        result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+    } else if (method == 71) { // GValueIndex for stop and ship; params.Ksi = fn(params, baseIdea)
+        params.S = 1.0;
+        params.ShipMul = 0.75;
+        scanf("%lf%lf", &params.ShipMul, &params.S);
+        TIdea baseIdea{baseMean, baseSigma, 1.0};
+        params.Ksi = - Sqr(baseSigma * params.S) * GValueIndex(baseIdea, params);
+        result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+    } else if (method == 70) { // GValueIndex for stop and ship and debug info
+        params.S = 1.0;
+        params.ShipMul = 0.75;
+        params.Ksi = 0;
         scanf("%lf%lf%lf", &params.ShipMul, &params.S, &params.Ksi);
         result = EvaluateBanditsGValueDebug(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
      } else {
