@@ -24,12 +24,12 @@ function workers {
     xargs -t -P "$pool_size" -L 1 time > /dev/null
 }
 
-function continue_points {
+function shipit_continue_points {
     filename=${1:-"shipit_results.txt"}
     weeks=${2:-"$default_weeks"}
     pool_size=${3:-$default_pool_size}
     echo "Continue: $filename, weeks=$weeks, pool_size=$pool_size"
-    $PYTHON ./optimize.py --command generate_cmd --src "$filename"  --weeks 10000000 |
+    $PYTHON ./optimize.py --command generate_cmd --src "$filename"  --weeks "$weeks" |
         grep -v SKIP |
         xargs -t -P "$pool_size" -L 1 time > /dev/null
 }
@@ -90,7 +90,7 @@ function shipit_method {
 function shipit_selected {
     cmds=""
     weeks=${1:-"$default_weeks"}
-    for e in 32 35; do
+    for e in 6 10; do
         # m=7
         # mean="-1"; sigma=1;
         # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
@@ -102,25 +102,25 @@ function shipit_selected {
         # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         # cmds="$cmd\n$cmds"
 
-        m=52
-        mean="-1.0"; sigma=1.0
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
 
-        m=7
         mean="-1.0"; sigma=1.0
+
+        m=5
         cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
         m=52
-        mean="-0.5"; sigma=1.0
         cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
         m=7
-        mean="-0.5"; sigma=1.0
         cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
+
+        m=71
+        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
 
         # mean="-0.5"; sigma=0.64
         # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"

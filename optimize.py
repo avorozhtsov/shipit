@@ -412,7 +412,7 @@ def optimize_shipit(
         os.system(write_point_cmd)
 
 
-def save_best_points(dryrun, filename, fn_name, prefix):
+def results2points(dryrun, filename, fn_name, prefix):
     best = {}
     with open(filename) as file:
         for line in file:
@@ -451,17 +451,17 @@ def generate_cmd(dryrun, filename, fn_name, prefix, weeks, trials):
                 method, seed, pt_weeks, pt_trials, mean, sigma, error, *_ = xargs
                 skip = "# SKIP " if float(pt_weeks) * float(pt_trials) > weeks * trials else ''
                 print(
-                    f"{skip}python3.8 ./optimize.py --prefix {prefix} --fn {fn_name} --weeks {weeks} --method {method} "
+                    f"{skip}python ./optimize.py --prefix {prefix} --fn {fn_name} --weeks {weeks} --method {method} "
                     f"--trials {trials} --mean {mean} --sigma {sigma} --seed {seed} --error {error}"
                 )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Optimize shipit')
-    parser.add_argument("--command", type=str, default="optimize", help="optimize|save_best_points|generate_cmd")
+    parser.add_argument("--command", type=str, default="optimize", help="optimize|results2points|generate_cmd")
 
     # for these arguments default depends on fn; set default=None
-    parser.add_argument("--src", type=str, default=None, help="input filename (for command=save_best_points)")
+    parser.add_argument("--src", type=str, default=None, help="input filename (for command=results2points)")
     parser.add_argument("--prefix", type=str, default=None, help="path prefix to store point data; NULL means DRY RUN")
     parser.add_argument("--dryrun", action='store_true', help="dry run")
     parser.add_argument("--fn",     type=str, default="shipit",  help="fn name: shipit or gauss_mab")
@@ -510,8 +510,8 @@ if __name__ == "__main__":
                 method=args.method, seed=args.seed, arms=args.arms, weeks=args.weeks, trials=args.trials,
                 mean=args.mean, sigma=args.sigma, error=args.error,
             )
-    elif args.command == "save_best_points":
-        save_best_points(args.dryrun, args.src, args.fn, args.prefix)
+    elif args.command == "results2points":
+        results2points(args.dryrun, args.src, args.fn, args.prefix)
     elif args.command == "generate_cmd":
         generate_cmd(args.dryrun, args.src, args.fn, args.prefix, args.weeks, args.trials)
     else:
