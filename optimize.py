@@ -423,13 +423,13 @@ def save_best_points(dryrun, filename, fn_name, prefix):
             result_and_args = re.split(r"[\r\n\t ]", line)
             result, result_sigma, *xargs = result_and_args
             filename = point_filename(fn_name, prefix, *xargs)
-            subkey = "_".join(str(x) for x in xargs[2:4])
-            key = (filename, subkey)
-            print(f"Read {filename}@{subkey}: {xargs_to_dict(fn_name, xargs)}: result={result}, result_sigma={result_sigma}")
-            if best.get(key, (-1.0, None, None))[0] <= float(result):
-                best[key] = (float(result), float(result_sigma), xargs)
-    for (filename, subkey), (result, result_sigma, xargs) in best.items():
-        print(f"Write {filename}@{subkey}: {xargs_to_dict(fn_name, xargs)}: result={result}, result_sigma={result_sigma}")
+            info = "_".join(str(x) for x in xargs[2:4])
+            # info = ""
+            print(f"Read {filename}@{info}: {xargs_to_dict(fn_name, xargs)}: result={result}, result_sigma={result_sigma}")
+            if best.get(filename, (-1.0, None, None))[0] <= float(result):
+                best[filename] = (float(result), float(result_sigma), xargs)
+    for filename, (result, result_sigma, xargs) in best.items():
+        print(f"Write {filename}: {xargs_to_dict(fn_name, xargs)}: result={result}, result_sigma={result_sigma}")
         if not dryrun:
             with open(filename, "w+") as file:
                 file.write(' '.join(xargs) + "\n")

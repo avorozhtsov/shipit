@@ -470,20 +470,22 @@ main(int argc, char* argv[]) {
         params.StopSigmas = 1.0;
         scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.MaxTestWeeks);
         result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 5) { // same as prev, with base at point (S * base.Mean, S * base.Sigma)
+    } else if (method == 5) { // stopCnd (mean > ShipSigmas * sigma)
+        params.S = 1.0; // fixed
+        params.Sigma0 = 0; // fixed
         params.ShipSigmas = 0.5;
         params.StopSigmas = 1.9;
-        params.S = 1.0;
         scanf("%lf%lf", &params.ShipSigmas, &params.StopSigmas);
         result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 51) { // same as prev, with base at point (S * base.Mean, S * base.Sigma)
+    } else if (method == 51) { // two general linear cnds on plane (mean, sigma); 
+        params.S = 1.0; //fixed
         params.ShipSigmas = 0.5;
         params.StopSigmas = 1.9;
-        params.S = 1.0;
+        params.Sigma0 = 0;
         scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.Sigma0);
         result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 52) { // same as prev, with intersection at mean = 0
-        params.S = 1.0;
+    } else if (method == 52) { // method = 51 with intersection at mean = 0
+        params.S = 1.0; // fixed
         double addShip = 0.0;
         scanf("%lf%lf", &params.StopSigmas, &addShip);
         params.ShipSigmas = params.StopSigmas + addShip;
@@ -495,25 +497,23 @@ main(int argc, char* argv[]) {
         params.Ksi = 0.0;
         scanf("%lf%lf", &params.ShipMul, &params.S);
         result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 7) { // GValueIndex for stop and ship; params.Ksi = manual
+    } else if (method == 7 || method == 70) { // GValueIndex for stop and ship; params.Ksi = manual
         params.S = 1.0;
         params.ShipMul = 0.75;
         params.Ksi = 0.015;
         scanf("%lf%lf%lf", &params.ShipMul, &params.S, &params.Ksi);
-        result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 71) { // GValueIndex for stop and ship; params.Ksi = fn(params, baseIdea)
+        if (method == 7) {
+            result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+        } else {
+            result = EvaluateBanditsGValueDebug(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+        }  
+    } else if (method == 71) { // method = 7 with params.Ksi = fn(params, baseIdea)
         params.S = 1.0;
         params.ShipMul = 0.75;
         scanf("%lf%lf", &params.ShipMul, &params.S);
         TIdea baseIdea{baseMean, baseSigma, 1.0};
         params.Ksi = - Sqr(baseSigma * params.S) * GValueIndex(baseIdea, params);
         result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 70) { // GValueIndex for stop and ship and debug info
-        params.S = 1.0;
-        params.ShipMul = 0.75;
-        params.Ksi = 0;
-        scanf("%lf%lf%lf", &params.ShipMul, &params.S, &params.Ksi);
-        result = EvaluateBanditsGValueDebug(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
      } else {
         fprintf(stderr, "unknown method %d\n", method);
         Help();

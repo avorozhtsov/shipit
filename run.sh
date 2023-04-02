@@ -90,19 +90,38 @@ function shipit_method {
 function shipit_selected {
     cmds=""
     weeks=${1:-"$default_weeks"}
-    for e in 3; do
-        m=7
-        mean="-1"; sigma=1;
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-        sigma=0.5;
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-        sigma=0.64;
+    for e in 32 35; do
+        # m=7
+        # mean="-1"; sigma=1;
+        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        # cmds="$cmd\n$cmds"
+        # sigma=0.5;
+        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        # cmds="$cmd\n$cmds"
+        # sigma=0.64;
+        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        # cmds="$cmd\n$cmds"
+
+        m=52
+        mean="-1.0"; sigma=1.0
         cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
-        # m=51
+        m=7
+        mean="-1.0"; sigma=1.0
+        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
+        m=52
+        mean="-0.5"; sigma=1.0
+        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
+        m=7
+        mean="-0.5"; sigma=1.0
+        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
         # mean="-0.5"; sigma=0.64
         # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         # cmds="$cmd\n$cmds"
@@ -121,15 +140,36 @@ function shipit_selected {
 }
 
 
+
+function shipit_e35 {
+    cmds=""
+    weeks=${1:-"$default_weeks"}
+    for e in 35; do
+        # for m in 1 7 52 71; do
+        for m in 5 51 7 71 52; do
+            # for mean in -0.06 -0.1 -0.2 -0.7 -1.0 -1.5 -2.0; do
+            for mean in -0.5 -0.7 -1.0 -1.5 -2.0; do
+                for sigma in 1; do
+                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+                    cmds="$cmd\n$cmds"
+                done
+            done
+        done
+    done
+    run_workers "$cmds"
+}
+
+
 function shipit_best {
     cmds=""
-    for e in 4 6 8 16 20 22 32 35; do
-        # for m in 2 5 7; do
-        for m in 51; do
+    weeks=${1:-"$default_weeks"}
+    for e in 4 6 8 10 16 22 32 35; do
+        # for m in 1 7 52 71; do
+        for m in 7 71 52; do
             # for mean in -0.06 -0.1 -0.2 -0.7 -1.0 -1.5 -2.0; do
-            for mean in -1.0; do
+            for mean in -0.5 -1.0 2.0; do
                 for sigma in 1; do
-                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks 15000000"
+                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
                     cmds="$cmd\n$cmds"
                 done
             done
@@ -165,7 +205,7 @@ function shipit_ls_grid {
                     mean_p=$(echo $mean | perl -pe 's/\-//')
                     suffix="m${m}_a${mean_p}s1e${e}"
                     # echo
-                    -f "shipit_points/pt_${suffix}.txt" || echo "NO $suffix"
+                    -f "shipit_points/pt_${suffix}.txt" || echo "NO shipit_points/pt_${suffix}.txt"
                     ls "YES shipit_points/*${suffix}*.txt"
                 done
             done
