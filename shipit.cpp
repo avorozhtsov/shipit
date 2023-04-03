@@ -39,7 +39,9 @@ void Help() {
         "  base_sigma = sigma = sqrt(D) of profit for ideas in the pool; typical value is 1\n"
         "  measurement_sigma = sigma of one measurement (aka error); typical value is 8\n"
         "Example:\n"
-        "  echo \"7 123 100000 25 -1 1 8\" | ./shipit\n\n"
+        "  echo \"7 123 100000 25 -1 1 8 1.0016535 0.746185 -0.019133\" | ./shipit\n\n"
+        "General form:\n"
+         "  echo \"$method $seed $weeks $trials $b_mean $b_sigma $error $p1 $p2 $p3 ..\" | ./shipit\n\n"
         "It outputs two numbers: avg profit and standard deviation over trials.\n"
     );
 }
@@ -434,7 +436,11 @@ main(int argc, char* argv[]) {
         return 1;
     }
 
-    TRng rng = TRng(seed || rand());
+    if (seed == 0) {
+        seed = time(nullptr);
+    }
+
+    TRng rng = TRng(seed);
 
     if (trials <= 1) {
         fprintf(stderr, "WARN: trials should be >= 2");

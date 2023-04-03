@@ -66,7 +66,7 @@ def point_filename(fn_name, prefix, *xargs):
 
 def my_optimize(fn, optimize_method, n_calls, dimensions, x0, x0s=None, fn_noise=None):
     if optimize_method == "minimize":
-        res = minimize(fn, x0, method='nelder-mead', options={'disp': True})
+        res = minimize(fn, x0, method='nelder-mead', tol=1e-5, options={'disp': True})
         # res = minimize(fn, x0, method='nelder-mead', options={'xtol': 1e-5, 'disp': True})
     elif optimize_method == "forest_minimize":
         res = forest_minimize(fn, dimensions, x0=x0s, n_calls=n_calls, n_jobs=3, verbose=True)
@@ -249,9 +249,24 @@ def optimize_shipit(
     elif method == 51:
         mean_r = - float(mean) / float(sigma)
         x0 = x0 or [0.53, 1.8, 0.05]
-        dimensions = [(0.3, 0.8), (1.4, 2.2), (-0.3, 0.3)]
+        dimensions = [(0.3, 0.8), (1.4, 3.0), (-0.3, 5.0)]
+        sigma0_fn = lambda b_mean, b_sigma, p_stop : (float(b_mean) + float(p_stop) * float(b_sigma)) / float(p_stop);
+
         x0s = [
             x0,
+            [2.07, 2.07, 0.517],
+            [1.5, 1.5, 0.33],
+            [2.8, 2.8, 0.14],
+            [2.6, 2.6, 0.42],
+            [1.74, 1.74, 0.6],
+            [1.42, 1.42, 0.36],
+            [1.42, 1.42, 1.3],
+            [0.644, 0.644, 0.6895],
+            [0.93, 0.93, 3.0],
+            [x0[0], x0[1], sigma0_fn(mean, sigma, x0[1])],
+            [0.5 * (x0[0] + x0[1]), 0.5 * (x0[0] + x0[1]), sigma0_fn(mean, sigma, x0[1])],
+            [x0[0], x0[0], sigma0_fn(mean, sigma, x0[0])],
+            [x0[0], x0[0], x0[2]],
             [x0[0] * 1.02, x0[1] * 1.023, x0[2] * 1.015],
             [x0[0] * 0.99, x0[1] * 1.011, x0[2] * 1.02],
             [x0[0] * 1.02, x0[1] * 1.0, x0[2] * 0.97],
@@ -272,6 +287,7 @@ def optimize_shipit(
             [2.1 * math.sqrt(mean_r) * 1.02, 1.0, 0.2],
             [2.1 * math.sqrt(mean_r) * 0.977, x0[1], 0.2],
             [2.1 * math.sqrt(mean_r) * 0.977, x0[1] * 1.015, 0.2],
+            [2.1 * math.sqrt(mean_r) * 0.977, x0[1] * 1.015, 0.6],
             [2.1 * math.sqrt(mean_r) * 0.977, x0[1] * 0.988, x0[2]],
             [0.74, 1.6, -0.1], [0.9, 1.7, -0.2], [0.66, 1.6, -0.05], [1.1, 1.9, -0.3]
         ]
@@ -291,7 +307,11 @@ def optimize_shipit(
             [x0[0] * 1.013, x0[1] - 0.0513],
             [x0[0] * 0.993, x0[1] + 0.0512],
             [x0[0] * 1.0097, x0[1] + 0.0511],
+            [0.5, 0.0],
             [0.6, 0.0],
+            [0.65, 0.0],
+            [0.7, 0.0],
+            [0.75, 0.0],
             [0.9, 0.0],
             [1.2, 0.0],
             [1.5, 0.0],
@@ -369,18 +389,26 @@ def optimize_shipit(
             [x0[0] * 0.985, x0[1]],
             [x0[0], x0[1] * 0.991],
             [x0[0] * 1.015, x0[1] * 1.0111],
-            [1.0, 1.0],
             [1.0, 1.8],
             [1.0, 1.7],
             [1.0, 1.4],
+            [1.0, 1.1],
+            [1.0, 1.021],
+            [1.0, 1.0],
+            [1.0, 0.983],
+            [1.0, 0.9],
+            [1.0, 0.8],
+            [1.0, 0.7],
+            [1.0, 0.6],
+            [1.0, 0.5],
+            [1.0, 0.48],
+            [1.0, 0.43],
             [0.98, 0.9],
             [0.95, 0.80],
             [0.98, 0.70],
             [1.2, 0.60],
             [0.92, 0.55],
             [0.83, 0.51],
-            [1.0, 0.48],
-            [1.0, 0.43],
         ]
     else:
         raise ValueError(f"Bad value {method} for method ")
@@ -462,8 +490,8 @@ if __name__ == "__main__":
 
     # for these arguments default depends on fn; set default=None
     parser.add_argument("--src", type=str, default=None, help="input filename (for command=results2points)")
-    parser.add_argument("--prefix", type=str, default=None, help="path prefix to store point data; NULL means DRY RUN")
-    parser.add_argument("--dryrun", action='store_true', help="dry run")
+    parser.add_argument("--prefix", type=str, default=None, help="path prefix to store point data")
+    parser.add_argument("--dryrun", action='store_true', help="dry run (no changes in disk)")
     parser.add_argument("--fn",     type=str, default="shipit",  help="fn name: shipit or gauss_mab")
     parser.add_argument("--method", type=int, default=2,       help="method of shipping: 1, 2, ...")
     parser.add_argument("--seed",   type=int, default=1,       help="seed for random")

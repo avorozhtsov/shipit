@@ -3,5 +3,6 @@ shipit_points
 fn_cache
 test.py
 calc_result.sh
-.DS_Store
 *.log
+.DS_Store
+.vscode

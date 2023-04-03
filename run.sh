@@ -4,12 +4,15 @@ PYTHON=python
 
 default_pool_size=5
 default_weeks=30000000
+default_seed=2
 
 set -e
+
 
 function build {
     g++ -O3 --std=c++11 shipit.cpp -o shipit
 }
+
 
 function run_workers {
     cmd="$1"
@@ -19,27 +22,33 @@ function run_workers {
     echo -e "$cmds" | xargs -t -P "$pool_size" -L 1 time > /dev/null
 }
 
+
 function workers {
     pool_size=${1:-$default_pool_size}
     xargs -t -P "$pool_size" -L 1 time > /dev/null
 }
 
+
 function shipit_continue_points {
     filename=${1:-"shipit_results.txt"}
     weeks=${2:-"$default_weeks"}
-    pool_size=${3:-$default_pool_size}
+    seed=${3:-"$default_seed"}
+    pool_size=${4:-$default_pool_size}
     echo "Continue: $filename, weeks=$weeks, pool_size=$pool_size"
-    $PYTHON ./optimize.py --command generate_cmd --src "$filename"  --weeks "$weeks" |
+    $PYTHON ./optimize.py --command generate_cmd --src "$filename"  --weeks "$weeks" --seed "$seed" |
         grep -v SKIP |
         xargs -t -P "$pool_size" -L 1 time > /dev/null
 }
 
+
 function shipit {
     cmds=""
-    for e in 2 4 6 8 16 22 32; do
-        for m in 1 2 3 4 5 6 7; do
+    weeks=${1:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
+    for e in 2 4 6 8 10 16 22 32; do
+        for m in 1 2 3 4 5 51 52 6 7 71; do
             for mean in -0.2 -0.5 -1.0 -1.5; do
-                cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma 1 --weeks $default_weeks"
+                cmd="$PYTHON ./optimize.py --seed "$seed" --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
                 cmds="$cmd\n$cmds"
             done;
         done
@@ -47,13 +56,17 @@ function shipit {
     run_workers "$cmds" 10
 }
 
-function shipit_sigmas {
+
+function shipit_sigma {
     cmds=""
-    e=${1:-"16"}
-    for s in 0.7 1.5 1 2 4 8 10; do
-        for m in 2 7; do
+    s=${1:-"1.0"}
+    weeks=${2:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
+
+    for e in 4 10 16 22 32 35; do
+        for m in 1 5 51 52 7 71 ; do
             for mean in -1.0; do
-                cmd="$PYTHON ./optimize.py --prefix shipit_points/pt --fn shipit --method $m --error $e --mean $mean --sigma $s --weeks $default_weeks"
+                cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $s --weeks $weeks"
                 cmds="$cmd\n$cmds"
             done;
         done
@@ -61,96 +74,107 @@ function shipit_sigmas {
     run_workers "$cmds"
 }
 
+
 function shipit_mean {
     cmds=""
     mean=${1:-"-1.0"}
     weeks=${2:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
     for e in 2 4 8 16 32; do
         for m in 1 2 3 4 5 6; do
-            cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
+            cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
             cmds="$cmd\n$cmds"
         done
     done
     run_workers "$cmds"
 }
+
 
 function shipit_method {
     cmds=""
     m=${1:-"71"}
     weeks=${2:-"$default_weeks"}
-    for e in 2 4 6 8 16 32; do
+    seed=${2:-"$default_seed"}
+    for e in 2 4 6 8 10 16 32 35; do
         for mean in -0.1 -0.2 -0.5 -0.8 -1.0 -1.2 -1.5 -1.8 -2.0; do
-            cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
+            cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
             cmds="$cmd\n$cmds"
         done
     done
     run_workers "$cmds"
 }
 
+
 function shipit_selected {
     cmds=""
     weeks=${1:-"$default_weeks"}
-    for e in 6 10; do
-        # m=7
-        # mean="-1"; sigma=1;
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
-        # sigma=0.5;
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
-        # sigma=0.64;
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
+    seed=${2:-"$default_seed"}
+    for i in 1 ; do
+        sigma=1;
 
+        e=6; m=7
+        mean="-0.5"; 
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
 
-        mean="-1.0"; sigma=1.0
-
-        m=5
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        m=51
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
         m=52
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        m=7
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
         m=71
-        cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
+        e=35;   
+        m=7; 
+        mean="-0.7"; sigma=1;
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
 
-        # mean="-0.5"; sigma=0.64
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
-        # mean="-0.2"; sigma=0.5
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
-        # mean="-0.5"; sigma=0.82
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
-        # mean="-1.2"; sigma=1.0
-        # cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        # cmds="$cmd\n$cmds"
+        e=35;   
+        m=71; 
+        mean="-1.5";
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
+        e=35;   
+        m=71; 
+        mean="-0.5";
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
+        e=35;   
+        m=5; 
+        mean="-1.0";
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+
+        e=35;   
+        m=52; 
+        mean="-0.2"; sigma="0.5"
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
     done
 
     run_workers "$cmds"
 }
 
 
-
 function shipit_e35 {
     cmds=""
     weeks=${1:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
     for e in 35; do
         # for m in 1 7 52 71; do
         for m in 5 51 7 71 52; do
             # for mean in -0.06 -0.1 -0.2 -0.7 -1.0 -1.5 -2.0; do
-            for mean in -0.5 -0.7 -1.0 -1.5 -2.0; do
+            for mean in -0.2 -0.5 -0.7 -1.0 -1.5 -2.0; do
                 for sigma in 1; do
-                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+                    cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
                     cmds="$cmd\n$cmds"
                 done
             done
@@ -163,13 +187,15 @@ function shipit_e35 {
 function shipit_best {
     cmds=""
     weeks=${1:-"$default_weeks"}
-    for e in 4 6 8 10 16 22 32 35; do
+    seed=${2:-"$default_seed"}
+    # for e in 4 6 8 10 16 22 32 35; do
+    for e in 32 35; do
         # for m in 1 7 52 71; do
-        for m in 7 71 52; do
+        for m in 5 52 7 71; do
             # for mean in -0.06 -0.1 -0.2 -0.7 -1.0 -1.5 -2.0; do
-            for mean in -0.5 -1.0 2.0; do
+            for mean in -0.5 -1.0 -1.5; do
                 for sigma in 1; do
-                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+                    cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
                     cmds="$cmd\n$cmds"
                 done
             done
@@ -178,15 +204,35 @@ function shipit_best {
     run_workers "$cmds"
 }
 
-function shipit_52 {
+
+function shipit_51e35 {
     cmds=""
-    for e in 4 6 8 16 20 35 22 32; do
-        # for m in 2 5 7; do
-        for m in 52; do
-            # for mean in -0.06 -0.1 -0.2 -0.7 -1.0 -1.5 -2.0; do
+    weeks=${1:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
+    for e in 35; do
+        for m in 51; do
+            for mean in -0.06 -0.1 -0.2 -0.5 -0.7 -1.0 -1.5 -2.0; do
+            # for mean in -1.0; do
+                for sigma in 1; do
+                    cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks 1000000"
+                    cmds="$cmd\n$cmds"
+                done
+            done
+        done
+    done
+    run_workers "$cmds"
+}
+
+
+function shipit_51 {
+    cmds=""
+    weeks=${1:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
+    for e in 2 4 6 8 10 16 20 22 32 35; do
+        for m in 51; do
             for mean in -1.0; do
                 for sigma in 1; do
-                    cmd="$PYTHON ./optimize.py --fn shipit --method $m --error $e --mean $mean --sigma $sigma --weeks 1000000"
+                    cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
                     cmds="$cmd\n$cmds"
                 done
             done
@@ -213,6 +259,7 @@ function shipit_ls_grid {
     done
 }
 
+
 function calc_results {
     # use weeks=10000000 and special seed = 4 used only to calculate results
     echo "pt=\$1; cat \$pt | perl -pe 's/^(\d+) (\d+) (\d+) /\$1 4 20000000 /g' | ./shipit > \$pt.tmp; mv \$pt.tmp \$pt.result" > calc_result.sh
@@ -226,6 +273,7 @@ function calc_results {
     done
     run_workers "$cmds"
 }
+
 
 # cats tab-separated points data with result and result_sigma two first columns
 function print_results {
@@ -245,5 +293,6 @@ function print_results {
 
     )
 }
+
 
 "$@"
