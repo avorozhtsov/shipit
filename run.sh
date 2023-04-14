@@ -109,55 +109,21 @@ function shipit_selected {
     cmds=""
     weeks=${1:-"$default_weeks"}
     seed=${2:-"$default_seed"}
-    for i in 1 ; do
+    for m in 7 71 51 52; do
+
+        sigma=0.5;
+        mean="-0.2"
+        e=35;   
+
+        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
+        cmds="$cmd\n$cmds"
+        
         sigma=1;
+        mean="-1.5"
 
-        e=6; m=7
-        mean="-0.5"; 
         cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
         cmds="$cmd\n$cmds"
 
-        m=51
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        m=52
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        m=71
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        e=35;   
-        m=7; 
-        mean="-0.7"; sigma=1;
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        e=35;   
-        m=71; 
-        mean="-1.5";
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        e=35;   
-        m=71; 
-        mean="-0.5";
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        e=35;   
-        m=5; 
-        mean="-1.0";
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
-
-        e=35;   
-        m=52; 
-        mean="-0.2"; sigma="0.5"
-        cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma $sigma --weeks $weeks"
-        cmds="$cmd\n$cmds"
     done
 
     run_workers "$cmds"
