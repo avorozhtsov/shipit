@@ -349,7 +349,7 @@ def optimize_shipit(
     elif method == 7:
         # gValue with 3 params = shipMul, stopMul, ksi
         x0 = x0 or [0.70, 1.0, 0.015]
-        dimensions = [(0.1, 0.8), (0.5, 2.3), (-0.15, 0.15)]
+        dimensions = [(0.1, 1.2), (0.5, 2.3), (-0.15, 0.15)]
         x0s = [
             x0,
             [x0[0] * 1.02, x0[1] * 1.02, x0[2] * 1.015],
