@@ -1,6 +1,6 @@
 # Shipit
 
-## Problem
+## The Problem
 
 Imagine you have infinite pool of ideas (product features) to test. You need to A/B-test them, but you have limited number of users and, therefore, limited number of events they are generating. You can consequently test ideas one after another using different criteria for stopping experiments choosing between two verdicts "ship it" or "discard". What is the best criteria if you want to optimise profit per week?
 
@@ -24,14 +24,14 @@ Here we experimenting with sequential A/B testing approach aiming to maximise pr
 
 The main result is that having continuously monitoring a posteriori values $a$ and $\sigma$ of an idea
 
-- the condition $a > C_1\cdot \sigma + C_2$ is the best criterion for shipping (for some constants $C_1$ and $C_2$ depending on $(a_0, \sigma_0^2)$)
+- the condition $a > C_1\cdot \sigma + C_2$ is the best criterion for shipping, for some constants $C_1$ and $C_2$ depending on $(a_0, \sigma_0^2)$
 - the condition $\sigma^2 \cdot \mathrm{PDF}(a,\; \sigma^2) + a \cdot \mathrm{CDF}(a, \sigma^2) < g_0$, where $g_0 =\sigma_0^2 \cdot \mathrm{PDF}(a,\; \sigma_0^2) + a \cdot \mathrm{CDF}(a_0, \sigma_0^2) < g_0$ is the best criterion for discarding.
 
 ## Required
 
 - python -m pip install scipy scikit-optimize diskcache
 
-## Work
+## Usage
 
 - To get initial set of points by youself:
 ```
