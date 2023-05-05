@@ -33,6 +33,12 @@ The main result is that having continuously monitoring a posteriori values $a$ a
 
 ## Usage
 
+- To build binary shipit
+```
+./run.sh build
+```
+
+
 - To get initial set of points by youself:
 ```
 ./run.sh shipit_best 600000
