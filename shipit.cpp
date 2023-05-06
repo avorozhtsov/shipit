@@ -18,26 +18,26 @@ public:
         rng.seed(seed_val);
     }
 
-    double NormalRandom() {
+    double nrand() {
         return norm_g(rng);
     }
 };
 
 inline
-double Sqr(double val) {
+double sqr(double val) {
     return val * val;
 }
 
 
-void Help() {
+void help() {
     printf(
-        "Usage: echo method seed weeks trials base_mean base_sigma measurement_sigma param1 param2 ... | ./shipit\n"
+        "Usage: echo method seed weeks trials base_mean base_sigma week_sigma param1 param2 ... | ./shipit\n"
         "  method: 1 = moss, 5 = p-value, 6 = g-value with ksi=0, 7 = g-value with ksi=manual\n"
         "  seed = seed for random generator\n"
         "  weeks = number of steps; typical value is 1000000\n"
         "  base_mean = mean profit of a random idea; typical value is -1\n"
         "  base_sigma = sigma = sqrt(D) of profit for ideas in the pool; typical value is 1\n"
-        "  measurement_sigma = sigma of one measurement (aka error); typical value is 8\n"
+        "  week_sigma = sigma of one measurement (aka error); typical value is 8\n"
         "Example:\n"
         "  echo \"7 123 100000 25 -1 1 8 1.0016535 0.746185 -0.019133\" | ./shipit\n\n"
         "General form:\n"
@@ -53,193 +53,207 @@ public:
 
     };
 
-    TIdea(double Mean, double Sigma, double Weight): Mean(Mean), Sigma(Sigma), Weight(Weight) {
+    TIdea(double mean, double sigma, double weight): mean(mean), sigma(sigma), weight(weight) {
 
     };
 
-    /* One week experiment updates prior distribution */
-    void ExploreForAWeek(TRng &rng, double measurementSigma, double measurementWeight) {
-        double thisWeekProfit = TrueProfit + measurementSigma * rng.NormalRandom();
-        Mean = (Mean * Weight + thisWeekProfit * measurementWeight) / (Weight + measurementWeight);
-        Weight += measurementWeight;
-        Sigma = 1.0 / sqrt(Weight);
+    TIdea(double mean, double sigma): mean(mean), sigma(sigma) {
+        weight = 1 / sqr(sigma);
+    };
+
+    /* One week experiment updates _prior distribution */
+    void explore_week(TRng &rng, double week_sigma, double week_weight) {
+        double week_profit = true_profit + week_sigma * rng.nrand();
+        mean = (mean * weight + week_profit * week_weight) / (weight + week_weight);
+        weight += week_weight;
+        sigma = 1.0 / sqrt(weight);
         Weeks++;
     }
 
-    void ReplaceWithNew(TRng &rng, const TIdea& pool) {
-        Mean = pool.Mean;
-        Sigma = pool.Sigma;
-        Weight = pool.Weight;
-        TrueProfit = Mean + Sigma * rng.NormalRandom();
+    void replace_with(TRng &rng, const TIdea& pool) {
+        mean = pool.mean;
+        sigma = pool.sigma;
+        weight = pool.weight;
+        true_profit = mean + sigma * rng.nrand();
         Weeks = 0;
     }
 
-    double Mean = 0;
-    double Sigma = 1;
-    double Weight = 1;
-    double TrueProfit = 0;
+    double mean = 0;
+    double sigma = 1;
+    double weight = 1;
+    double true_profit = 0;
     int Weeks = 0;
 };
 
 
 struct TParams {
-    double ShipSigmas = 0.0;
-    double StopSigmas = 0.0;
-    double Sigma0 = 0.0;
-    double ShipMul = 0.0;
-    double StopMul = 0.0;
-    double Epsilon = 0.0;
-    double Ksi = 0.0;
-    double A = 0.0;
-    double B = 0.0;
     double S = 0.0;
+    double ship_sigmas = 0.0;
+    double stop_sigmas = 0.0;
+    double sigma_mul = 0.0;
+    double ship_mul = 0.0;
+    double stop_mul = 0.0;
+    double Epsilon = 0.0;
+    double ksi = 0.0;
     double L = 0.0;
-    double MaxTestWeeks = 0.0;
+    double max_test_weeks = 0.0;
 };
 
 struct TResult {
-    double Profit = 0.0;
-    double Sigma = 0.0;
+    double profit = 0.0;
+    double sigma = 0.0;
 };
 
 /* a-la Gittins Index for Gaussian Processes */
 static inline double
-GValueIndex(TIdea& idea, TParams& params) {
-    double sigma = params.S * idea.Sigma;
-    double sigma2 = Sqr(sigma);
-    double mean = idea.Mean;
+g_index(TIdea& idea, TParams& params) {
+    double sigma = params.S * idea.sigma;
+    double sigma2 = sqr(sigma);
+    double mean = idea.mean;
     return (
-        sigma * exp(-0.5 * Sqr(mean) / sigma2) / sqrt(2.0 * M_PI) +
+        sigma * exp(-0.5 * sqr(mean) / sigma2) / sqrt(2.0 * M_PI) +
         mean * (0.5 + 0.5 * erf(mean / sigma / M_SQRT2)) +
-        params.Ksi / sigma2
+        params.ksi / sigma2
     );
 }
 
 /*  a-la UCB1 function*/
 static inline double
-MossIndex(TIdea& idea, TParams& params) {
-    double sigma = params.S * idea.Sigma;
-    double mean = idea.Mean;
-    return (mean + sigma * sqrt(fmax(params.Ksi, params.L + log(sigma))));
+moss_index(TIdea& idea, TParams& params) {
+    return idea.mean + params.S * idea.sigma * sqrt(fmax(params.ksi, params.L + log(idea.sigma)));
 }
 
 /* Qn - fixed quantile */
 static inline double
-QnIndex(TIdea& idea, TParams& params) {
-    return idea.Mean + params.S * idea.Sigma;
+qn_index(TIdea& idea, TParams& params) {
+    return idea.mean + params.S * idea.sigma;
 }
 
-static inline double
-ComplexIndex(TIdea& idea, TParams& params) {
-    double sigma = params.S * idea.Sigma;
-    double sigma2 = Sqr(sigma);
-    double mean = idea.Mean;
-    return (
-        params.A * mean +
-        params.Epsilon * (
-            params.A * exp(M_SQRT2  * mean / params.Epsilon + sigma2 / Sqr(params.Epsilon)) +
-            params.Ksi * params.Epsilon / sigma2
-        )
-    );
-}
 
-/* Ship experiments by pValue (-mean / sigma < StopSigmas to stop, and mean / sigma > ShipSigmas to ship) */
+/*
+Ship experiments by pValue
+For p.stop_mul = 0, and p.sigma_mul = 0:
+    ship:  mean / sigma > ship_sigmas
+    stop: -mean / sigma < stop_sigmas
+General case:
+    ship:  mean - sigma * ship_sigmas > sigma0 * ship_sigmas
+    stop:  mean + sigma * stop_sigmas < p.stop_mul * (base_mean + base_sigma * stop_sigmas)
+    where sigma0 = p.sigma_mul * base_sigma
+*/
 static TResult
-EvaluateBanditsPValue(
+eval_pvalue(
     TRng &rng, int weeks, int trials,
-    double baseMean, double baseSigma, double measurementSigma,
+    double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
-    double totalProfit = 0;
-    double totalProfitSqr = 0;
+    double total_profit = 0;
+    double total_profit_sqr = 0;
     TResult result;
-    double baseWeight = 1.0 / Sqr(baseSigma);
-    double measurementWeight = 1.0 / Sqr(measurementSigma);
-    TIdea baseIdea{baseMean, baseSigma, baseWeight};
+    double base_weight = 1.0 / sqr(base_sigma);
+    double week_weight = 1.0 / sqr(week_sigma);
+    TIdea base_idea{base_mean, base_sigma, base_weight};
+    double sigma0 = params.sigma_mul * base_idea.sigma;
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.ReplaceWithNew(rng, baseIdea);
-        double shippedProfit = 0;
+        idea.replace_with(rng, base_idea);
+        double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
-            if (-(idea.Mean - params.S * baseIdea.Mean) >  (idea.Sigma - params.S * baseIdea.Sigma) * params.StopSigmas || (idea.Weeks > params.MaxTestWeeks && idea.Mean < 0)) {
-                idea.ReplaceWithNew(rng, baseIdea);
-            } else if (idea.Mean > (idea.Sigma - params.Sigma0) * params.ShipSigmas || (idea.Weeks > params.MaxTestWeeks && idea.Mean > 0)) {
-                shippedProfit += idea.TrueProfit;
-                idea.ReplaceWithNew(rng, baseIdea);
-            } // else continue exploring the idea
+            idea.explore_week(rng, week_sigma, week_weight);
+            double qn_base_index = base_idea.mean + base_idea.sigma * params.stop_sigmas;
+            double qn_index = idea.mean + idea.sigma * params.stop_sigmas;
+            if (
+                qn_index < params.stop_mul * qn_base_index
+                || (idea.Weeks > params.max_test_weeks && idea.mean < 0)
+            ) {
+                // stop & discard
+                idea.replace_with(rng, base_idea);
+            } else if (
+                idea.mean > (idea.sigma - sigma0) * params.ship_sigmas
+                || (idea.Weeks > params.max_test_weeks)
+            ) {
+                // shipit!
+                shipped_profit += idea.true_profit;
+                idea.replace_with(rng, base_idea);
+            } // else continue exploration
         }
-        double avgProfit = shippedProfit / weeks;
-        totalProfit += avgProfit;
-        totalProfitSqr += Sqr(avgProfit);
+        double avg_profit = shipped_profit / weeks;
+        total_profit += avg_profit;
+        total_profit_sqr += sqr(avg_profit);
     }
-    result.Profit = totalProfit / trials;
-    result.Sigma = sqrt((totalProfitSqr / trials -  Sqr(result.Profit)) / (trials - 1));
+    result.profit = total_profit / trials;
+    result.sigma = sqrt((total_profit_sqr / trials -  sqr(result.profit)) / (trials - 1));
     return result;
 }
 
-/* Ship experiment by Index function. Current winner with indexFn == GValueIndex */
-template <typename TIndexFn>
+/*
+Ship experiment by Index function. The leader is index_fn == g_index
+    ship: mean  > p.ship_mul * index
+    stop: index < p.stop_mul * base_index
+Hint: p.stop_mul == 1 is the best
+*/
+template <typename Tindex_fn>
 static TResult
-EvaluateBanditsGValue(
-    TRng &rng, TIndexFn indexFn, int weeks, int trials,
-    double baseMean, double baseSigma, double measurementSigma,
+eval_index(
+    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
-    double totalProfit = 0;
-    double totalProfitSqr = 0;
+    double total_profit = 0;
+    double total_profit_sqr = 0;
     TResult result;
-    double baseWeight = 1.0 / Sqr(baseSigma);
-    double measurementWeight = 1.0 / Sqr(measurementSigma);
-    TIdea baseIdea{baseMean, baseSigma, baseWeight};
-    double baseIndex = indexFn(baseIdea, params);
+    double base_weight = 1.0 / sqr(base_sigma);
+    double week_weight = 1.0 / sqr(week_sigma);
+    TIdea base_idea{base_mean, base_sigma};
+    double base_index = index_fn(base_idea, params);
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.ReplaceWithNew(rng, baseIdea);
-        double shippedProfit = 0;
+        idea.replace_with(rng, base_idea);
+        double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
-            double ideaIndex = indexFn(idea, params);
-            if (ideaIndex <= baseIndex) {
-                idea.ReplaceWithNew(rng, baseIdea);
-            } else if (idea.Mean >= ideaIndex * params.ShipMul) {
-                shippedProfit += idea.TrueProfit;
-                idea.ReplaceWithNew(rng, baseIdea);
-            } // else continue exploring the idea
+            idea.explore_week(rng, week_sigma, week_weight);
+            double idea_index = index_fn(idea, params);
+            if (idea_index <= base_index) {
+                // stop & discard
+                idea.replace_with(rng, base_idea);
+            } else if (idea.mean >= idea_index * params.ship_mul) {
+                // shipit!
+                shipped_profit += idea.true_profit;
+                idea.replace_with(rng, base_idea);
+            } // else continue exploration
         }
-        double avgProfit = shippedProfit / weeks;
-        totalProfit += avgProfit;
-        totalProfitSqr += Sqr(avgProfit);
+        double avg_profit = shipped_profit / weeks;
+        total_profit += avg_profit;
+        total_profit_sqr += sqr(avg_profit);
     }
-    result.Profit = totalProfit / trials;
-    result.Sigma = sqrt((totalProfitSqr / trials -  Sqr(result.Profit)) / (trials - 1));
+    result.profit = total_profit / trials;
+    result.sigma = sqrt((total_profit_sqr / trials -  sqr(result.profit)) / (trials - 1));
     return result;
 }
 
 
 /* same as previous with debug info */
-template <typename TIndexFn>
+template <typename Tindex_fn>
 static TResult
-EvaluateBanditsGValueDebug(
-    TRng &rng, TIndexFn indexFn, int weeks, int trials,
-    double baseMean, double baseSigma, double measurementSigma,
+eval_index_debug(
+    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
-    double totalProfit = 0;
-    double totalProfitSqr = 0;
+    double total_profit = 0;
+    double total_profit_sqr = 0;
     TResult result;
-    double baseWeight = 1.0 / Sqr(baseSigma);
-    double measurementWeight = 1.0 / Sqr(measurementSigma);
-    TIdea baseIdea{baseMean, baseSigma, baseWeight};
-    double baseIndex = indexFn(baseIdea, params);
+    double base_weight = 1.0 / sqr(base_sigma);
+    double week_weight = 1.0 / sqr(week_sigma);
+    TIdea base_idea{base_mean, base_sigma};
+    double base_index = index_fn(base_idea, params);
     /*
-    double unshippedPositives = 0;
-    double unshippedPositivesPrior = 0;
-    double shippedNegatives = 0;
-    int unshippedPositivesCount= 0;
-    int shippedNegativesCount = 0;
+    double unshipped_positives = 0;
+    double unshipped_positives_prior = 0;
+    double shipped_negatives = 0;
+    int unshipped_positives_count= 0;
+    int shipped_negatives_count = 0;
     */
 
     //TMap<int, int> ship;
@@ -251,21 +265,26 @@ EvaluateBanditsGValueDebug(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.ReplaceWithNew(rng, baseIdea);
-        double shippedProfit = 0;
+        idea.replace_with(rng, base_idea);
+        double shipped_profit = 0;
         //step = 1;
         for (int week = 0; week < weeks; ++week) {
-            idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
-            trace.push_back(std::make_pair(idea.Mean, idea.Sigma));
-            double ideaIndex = indexFn(idea, params);
-            if (ideaIndex <= baseIndex) {
-                /* if (idea.Mean > 0) {
-                    unshippedPositives += idea.TrueProfit;
-                    unshippedPositivesPrior += idea.Mean;
-                    unshippedPositivesCount++;
+            idea.explore_week(rng, week_sigma, week_weight);
+            trace.push_back(std::make_pair(idea.mean, idea.sigma));
+            double idea_index = index_fn(idea, params);
+            if (idea_index <= base_index) {
+                /* if (idea.true_profit > 0) {
+                    unshipped_positives += idea.true_profit;
+                    unshipped_positives_prior += idea.mean;
+                    unshipped_positives_count++;
                 } */
-                if (max_trace_size + 10 < trace.size() || (trace.size() > 25 && trace_count < 5) || (trace.size() > 65 && trace_count < 10) || (trace.size() > 120 && trace_count < 15)) {
-                    printf("{\"stop\", {\n {%lf, %lf}", baseIdea.Mean, baseIdea.Sigma);
+                if (
+                    max_trace_size + 10 < trace.size()
+                    || (trace.size() > 25 && trace_count < 5)
+                    || (trace.size() > 65 && trace_count < 10)
+                    || (trace.size() > 120 && trace_count < 16)
+                ) {
+                    printf("{\"stop\", {\n {%lf, %lf}", base_idea.mean, base_idea.sigma);
                     for(auto p: trace) {
                         printf(", {%lf, %lf}", p.first, p.second);
                     }
@@ -274,17 +293,22 @@ EvaluateBanditsGValueDebug(
                     max_trace_size = std::max(max_trace_size, trace.size());
                 }
                 trace.clear();
-                idea.ReplaceWithNew(rng, baseIdea);
+                idea.replace_with(rng, base_idea);
                 //stop[step]++; step = 0;
-            } else if (idea.Mean >= ideaIndex * params.ShipMul) {
+            } else if (idea.mean >= idea_index * params.ship_mul) {
                 /*
-                if (idea.Mean < 0) {
-                     shippedNegatives += idea.TrueProfit; shippedNegativesCount++;
+                if (idea.true_profit < 0) {
+                     shipped_negatives += idea.true_profit; shipped_negatives_count++;
                 }*/
-                shippedProfit += idea.TrueProfit;
-                idea.ReplaceWithNew(rng, baseIdea);
-                if (max_trace_size + 10 < trace.size() || (trace.size() > 25 && trace_count < 6) || (trace.size() > 65 && trace_count < 11) || (trace.size() > 120 && trace_count < 16)) {
-                    printf("{\"ship\", {\n{%lf, %lf}", baseIdea.Mean, baseIdea.Sigma);
+                shipped_profit += idea.true_profit;
+                idea.replace_with(rng, base_idea);
+                if (
+                    max_trace_size + 10 < trace.size()
+                    || (trace.size() > 25 && trace_count < 6)
+                    || (trace.size() > 65 && trace_count < 11)
+                    || (trace.size() > 120 && trace_count < 16)
+                ) {
+                    printf("{\"ship\", {\n{%lf, %lf}", base_idea.mean, base_idea.sigma);
                     for(auto p: trace) {
                         printf(", {%lf, %lf}", p.first, p.second);
                     }
@@ -297,19 +321,19 @@ EvaluateBanditsGValueDebug(
             } // else continue exploring the idea
             //++step;
         }
-        double avgProfit = shippedProfit / weeks;
-        totalProfit += avgProfit;
-        totalProfitSqr += Sqr(avgProfit);
+        double avg_profit = shipped_profit / weeks;
+        total_profit += avg_profit;
+        total_profit_sqr += sqr(avg_profit);
     }
-    result.Profit = totalProfit / trials;
-    result.Sigma = sqrt((totalProfitSqr / trials -  Sqr(result.Profit)) / (trials - 1));
+    result.profit = total_profit / trials;
+    result.sigma = sqrt((total_profit_sqr / trials -  sqr(result.profit)) / (trials - 1));
     /* printf(
         "unshipped: #=%d, p=%lf (%lf), avg=%lf\n",
-        unshippedPositivesCount,
-        unshippedPositives, unshippedPositivesPrior,
-        unshippedPositives / (unshippedPositivesCount + 0.1)
+        unshipped_positives_count,
+        unshipped_positives, unshipped_positives_prior,
+        unshipped_positives / (unshipped_positives_count + 0.1)
     );
-    printf("shipped: #=%d, p=%lf, avg=%lf\n", shippedNegativesCount, shippedNegatives, shippedNegatives / (shippedNegativesCount + 0.1));
+    printf("shipped: #=%d, p=%lf, avg=%lf\n", shipped_negatives_count, shipped_negatives, shipped_negatives / (shipped_negatives_count + 0.1));
     */
 
     /*
@@ -324,115 +348,116 @@ EvaluateBanditsGValueDebug(
     return result;
 }
 
-/*
-Stop if
-    ideaIndex <= params.StopMul * baseIndex
-    || idea.Mean >= params.ShipMul * idea.Sigma
-    || idea.Weeks > params.MaxTestWeeks
-And ship if idea.Mean >= 0.
-*/
-template <typename TIndexFn>
+template <typename Tindex_fn>
 static TResult
-EvaluateBanditsCustom(
-    TRng &rng, TIndexFn indexFn, int weeks, int trials,
-    double baseMean, double baseSigma, double measurementSigma,
+eval_index_pvalue(
+    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
-    double totalProfit = 0;
-    double totalProfitSqr = 0;
+    double total_profit = 0;
+    double total_profit_sqr = 0;
     TResult result;
-    double baseWeight = 1.0 / Sqr(baseSigma);
-    double measurementWeight = 1.0 / Sqr(measurementSigma);
-    TIdea baseIdea{baseMean, baseSigma, baseWeight};
-    double baseIndex = indexFn(baseIdea, params);
+    double base_weight = 1.0 / sqr(base_sigma);
+    double week_weight = 1.0 / sqr(week_sigma);
+    TIdea base_idea{base_mean, base_sigma};
+    double base_index = index_fn(base_idea, params);
+    double sigma0 = params.sigma_mul * base_idea.sigma;
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.ReplaceWithNew(rng, baseIdea);
-        double shippedProfit = 0;
+        idea.replace_with(rng, base_idea);
+        double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
-            double ideaIndex = indexFn(idea, params);
-            if (ideaIndex <= params.StopMul * baseIndex || idea.Mean >= params.ShipMul * idea.Sigma || idea.Weeks > params.MaxTestWeeks) {
-                if (idea.Mean >= 0) {
-                    shippedProfit += idea.TrueProfit;
-                }
-                idea.ReplaceWithNew(rng, baseIdea);
+            idea.explore_week(rng, week_sigma, week_weight);
+            double idea_index = index_fn(idea, params);
+            if (idea_index <= base_index) {
+                // stop & discard
+                idea.replace_with(rng, base_idea);
+            } else {
+                // The only block that differs from eval_index
+                if (idea.mean > (idea.sigma - sigma0) * params.ship_sigmas) {
+                    // shipit!
+                    shipped_profit += idea.true_profit;
+                    idea.replace_with(rng, base_idea);
+                 } // else continue exploration
             }
         }
-        double avgProfit = shippedProfit / weeks;
-        totalProfit += avgProfit;
-        totalProfitSqr += Sqr(avgProfit);
+        double avg_profit = shipped_profit / weeks;
+        total_profit += avg_profit;
+        total_profit_sqr += sqr(avg_profit);
     }
-    result.Profit = totalProfit / trials;
-    result.Sigma = sqrt((totalProfitSqr / trials -  Sqr(result.Profit)) / (trials - 1));
+    result.profit = total_profit / trials;
+    result.sigma = sqrt((total_profit_sqr / trials -  sqr(result.profit)) / (trials - 1));
     return result;
 }
 
-
-/*
-    Same as EvaluateBanditsCustom, but in stop condition we have
-        idea.Mean >= params.ShipMul * ideaIndex
-    instead of
-        idea.Mean >= params.ShipMul * idea.Sigma
-*/
-template <typename TIndexFn>
+template <typename Tindex_fn>
 static TResult
-EvaluateBanditsCustom2(
-    TRng &rng, TIndexFn indexFn, int weeks, int trials,
-    double baseMean, double baseSigma, double measurementSigma,
+eval_index_sym(
+    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
-    double totalProfit = 0;
-    double totalProfitSqr = 0;
+    double total_profit = 0;
+    double total_profit_sqr = 0;
     TResult result;
-    double baseWeight = 1.0 / Sqr(baseSigma);
-    double measurementWeight = 1.0 / Sqr(measurementSigma);
-    TIdea baseIdea{baseMean, baseSigma, baseWeight};
-    double baseIndex = indexFn(baseIdea, params);
+    double base_weight = 1.0 / sqr(base_sigma);
+    double week_weight = 1.0 / sqr(week_sigma);
+    TIdea base_idea{base_mean, base_sigma};
+    double base_index = index_fn(base_idea, params);
+    // add mirror base_idea and its index
+    TIdea mirror_base_idea{-base_mean, base_sigma};
+    double mirror_base_index = index_fn(mirror_base_idea, params);
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.ReplaceWithNew(rng, baseIdea);
-        double shippedProfit = 0;
+        idea.replace_with(rng, base_idea);
+        double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.ExploreForAWeek(rng, measurementSigma, measurementWeight);
-            double ideaIndex = indexFn(idea, params);
-            if (ideaIndex <= params.StopMul * baseIndex || idea.Mean >= params.ShipMul * ideaIndex || idea.Weeks > params.MaxTestWeeks) {
-                if (idea.Mean >= 0) {
-                    shippedProfit += idea.TrueProfit;
-                }
-                idea.ReplaceWithNew(rng, baseIdea);
+            idea.explore_week(rng, week_sigma, week_weight);
+            double idea_index = index_fn(idea, params);
+            if (idea_index <= base_index) {
+                // stop & discard
+                idea.replace_with(rng, base_idea);
+            } else {
+                // The only block that differs from eval_index
+                TIdea mirror_idea{-idea.mean, idea.sigma};
+                double mirror_idea_index = index_fn(mirror_idea, params);
+                if (mirror_idea_index <= mirror_base_index) {
+                    // shipit!
+                    shipped_profit += idea.true_profit;
+                    idea.replace_with(rng, base_idea);
+                 } // else continue exploration
             }
         }
-        double avgProfit = shippedProfit / weeks;
-        totalProfit += avgProfit;
-        totalProfitSqr += Sqr(avgProfit);
+        double avg_profit = shipped_profit / weeks;
+        total_profit += avg_profit;
+        total_profit_sqr += sqr(avg_profit);
     }
-    result.Profit = totalProfit / trials;
-    result.Sigma = sqrt((totalProfitSqr / trials -  Sqr(result.Profit)) / (trials - 1));
+    result.profit = total_profit / trials;
+    result.sigma = sqrt((total_profit_sqr / trials -  sqr(result.profit)) / (trials - 1));
     return result;
 }
-
 
 int
 main(int argc, char* argv[]) {
-
+    // yes, I know, it's bad
     if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'h') {
-        Help();
+        help();
         return 0;
     }
 
     int method, seed, weeks, trials;
-    double baseMean, baseSigma, measurementSigma;
+    double base_mean, base_sigma, week_sigma;
     TResult result;
     TParams params;
     int inputs_count = 0;
 
     inputs_count += scanf("%d%d%d%d", &method, &seed, &weeks, &trials);
-    inputs_count += scanf("%lf%lf%lf", &baseMean, &baseSigma, &measurementSigma);
+    inputs_count += scanf("%lf%lf%lf", &base_mean, &base_sigma, &week_sigma);
     if (inputs_count < 7) {
-        Help();
+        help();
         return 1;
     }
 
@@ -446,87 +471,103 @@ main(int argc, char* argv[]) {
         fprintf(stderr, "WARN: trials should be >= 2");
         trials = 2;
     }
-    // params.MaxTestWeeks =  Max(2, (int)(0.5 + 1.673 * Sqr(0.72 + measurementSigma / baseSigma)));
-    params.MaxTestWeeks = 100000.0; // fixed
-    params.Ksi = 0.0;
-    params.Sigma0 = 0.0;
+    // params.max_test_weeks =  Max(2, (int)(0.5 + 1.673 * sqr(0.72 + week_sigma / base_sigma)));
+    params.max_test_weeks = 100000.0; // fixed
+    params.ksi = 0.0;
+    params.sigma_mul = 0.0;
+    TIdea base_idea{base_mean, base_sigma, 1 / sqr(base_sigma)};
 
-    if (method == 1) { // Moss Index with shipCnd = (mean > c * sigma)
+    if (method / 10 == 1) {
+        // PValue family.
+        // stopCnd = (mean + stop_sigmas * sigma < base_mean + stop_sigmas * base_sigma)
+        // shipCnd = (mean > (sigma - sigma_mul * base_sigma) * ship_sigmas
+        params.stop_mul = 0.0;
+        params.sigma_mul = 0.0;
+        params.ship_sigmas = 0.6;
+        params.stop_sigmas = 2.1;
+        if (method == 10) {
+            scanf(
+                "%lf%lf%lf%lf%lf",
+                &params.ship_sigmas, &params.stop_sigmas, &params.sigma_mul,
+                &params.ship_mul, &params.max_test_weeks
+            );
+        } else if(method == 11) {
+            // stopCnd = (mean + stop_sigmas * sigma < 0)
+            // shipCnd = (mean - ship_sigmas * sigma > 0)
+            params.stop_mul = 0.0;
+            scanf("%lf%lf", &params.ship_sigmas, &params.stop_sigmas);
+        } else if(method == 12) {
+            // stopCnd = (mean + stop_sigmas * sigma < base_mean + stop_sigmas * base_sigma)
+            // shipCnd = (mean - ship_sigmas * (sigma - sigma0) > 0)
+            // where sigma0 = sigma_mul * base_sigma
+            params.stop_mul = 1.0;
+            scanf("%lf%lf%lf", &params.ship_sigmas, &params.stop_sigmas, &params.sigma_mul);
+        } else if(method == 13) {
+            // ship && stop intersect at mean = 0
+            params.stop_mul = 1.0;
+            scanf("%lf%lf", &params.ship_sigmas, &params.stop_sigmas);
+            params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
+        } else if(method == 14) {
+            // ship && stop intersect at mean = 0
+            params.stop_mul = 1.0;
+            double add_s = 0.0;
+            scanf("%lf%lf", &params.stop_sigmas, &add_s);
+            params.ship_sigmas = params.stop_sigmas + add_s;
+            params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
+        } else if(method == 15) {
+            // ship && stop intersect at mean = 0
+            // and ship_sigmas == stop_sigmas
+            params.stop_mul = 1.0;
+            scanf("%lf", &params.ship_sigmas);
+            params.stop_sigmas = params.ship_sigmas;
+            params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
+        }
+        result = eval_pvalue(rng, weeks, trials, base_mean, base_sigma, week_sigma, params);
+    } else if (method / 10 == 2) {
+        // moss-index family
+        params.stop_mul = 1.0; // fixed
         params.S = 1.0;
         params.L = 2.0;
-        params.ShipMul = 0.75;
-        params.StopMul = 1.0;
-        scanf("%lf%lf%lf%lf%lf", &params.S, &params.L, &params.ShipMul, &params.StopMul, &params.Ksi);
-        params.StopMul = 1.0;
-        result = EvaluateBanditsCustom(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 2) { // method = 1 && StopMul == 1.0 && S == ShipMul
-        params.S = 0.75;
-        params.L = 2.0;
-        scanf("%lf%lf%lf", &params.S, &params.L, &params.Ksi);
-        params.StopMul = 1.0;
-        params.ShipMul = params.S;
-        result = EvaluateBanditsCustom(rng, MossIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 3) { // pValue: stopCnd = ( mean < - StopSigmas * sigma), shipCnd = (mean > ShipSigmas * sigma)
-        params.ShipSigmas = 0.3;
-        params.StopSigmas = 1.0;
-        scanf("%lf%lf", &params.ShipSigmas, &params.StopSigmas);
-        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 4) { // same as prev, with stopping when weeks > MaxTestWeeks
-        params.ShipSigmas = 0.3;
-        params.StopSigmas = 1.0;
-        scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.MaxTestWeeks);
-        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 5) { // stopCnd (mean > ShipSigmas * sigma)
-        params.S = 1.0; // fixed
-        params.Sigma0 = 0; // fixed
-        params.ShipSigmas = 0.5;
-        params.StopSigmas = 1.9;
-        scanf("%lf%lf", &params.ShipSigmas, &params.StopSigmas);
-        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 51) { // two general linear cnds on plane (mean, sigma); 
-        params.S = 1.0; //fixed
-        params.ShipSigmas = 0.5;
-        params.StopSigmas = 1.9;
-        params.Sigma0 = 0;
-        scanf("%lf%lf%lf", &params.ShipSigmas, &params.StopSigmas, &params.Sigma0);
-        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 52) { // method = 51 with intersection at mean = 0
-        params.S = 1.0; // fixed
-        double addShip = 0.0;
-        scanf("%lf%lf", &params.StopSigmas, &addShip);
-        params.ShipSigmas = params.StopSigmas + addShip;
-        params.Sigma0 = (baseMean + params.StopSigmas * baseSigma) / params.StopSigmas;
-        result = EvaluateBanditsPValue(rng, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 6) { // GValueIndex for stop and ship; params.Ksi = 0
-        params.S = 1.0;
-        params.ShipMul = 0.75;
-        params.Ksi = 0.0;
-        scanf("%lf%lf", &params.ShipMul, &params.S);
-        result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-    } else if (method == 7 || method == 70) { // GValueIndex for stop and ship; params.Ksi = manual
-        params.S = 1.0;
-        params.ShipMul = 0.75;
-        params.Ksi = 0.015;
-        scanf("%lf%lf%lf", &params.ShipMul, &params.S, &params.Ksi);
-        if (method == 7) {
-            result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-        } else {
-            result = EvaluateBanditsGValueDebug(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
-        }  
-    } else if (method == 71) { // method = 7 with params.Ksi = fn(params, baseIdea)
-        params.S = 1.0;
-        params.ShipMul = 0.75;
-        scanf("%lf%lf", &params.ShipMul, &params.S);
-        TIdea baseIdea{baseMean, baseSigma, 1.0};
-        params.Ksi = - Sqr(baseSigma * params.S) * GValueIndex(baseIdea, params);
-        result = EvaluateBanditsGValue(rng, GValueIndex, weeks, trials, baseMean, baseSigma, measurementSigma, params);
+        params.ship_sigmas = 0.6;
+        params.ksi = 1.75;
+        if (method == 20) {
+            scanf("%lf%lf%lf%lf", &params.S, &params.L, &params.ship_sigmas, &params.ksi);
+        } else if (method == 21) {
+            scanf("%lf%lf%lf", &params.S, &params.L, &params.ksi);
+            params.ship_sigmas = params.S * sqrt(fmax(params.ksi, params.L + log(base_sigma)));
+        }
+        double base_index_s = moss_index(base_idea, params) / params.S;
+        double sigma0 = 0.5 * base_sigma;
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
+        params.sigma_mul = sigma0 / base_sigma;
+        result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+
+    } else if (method / 10 == 3) {
+        // g-index family
+        params.stop_mul = 1.0;
+        params.ship_mul = 0.75;
+        params.ksi = 0.015;
+        if (method == 30) {
+            scanf("%lf%lf%lf", &params.S, &params.ship_mul, &params.ksi);
+        } else if (method == 31) {
+            params.ksi = 0.0;
+            scanf("%lf%lf", &params.S, &params.ship_mul);
+        } else if (method == 32) {
+            scanf("%lf%lf", &params.S, &params.ship_mul);
+            params.ksi = 0.0; // for g_index in the next line
+            params.ksi = - sqr(base_sigma * params.S) * g_index(base_idea, params);
+        }
+        result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        // result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
      } else {
         fprintf(stderr, "unknown method %d\n", method);
-        Help();
+        help();
         return 1;
     }
-    double normCoeff = Sqr(measurementSigma);
-    printf("%.8lg\n%.8g\n", normCoeff * result.Profit, normCoeff * result.Sigma);
+    double normCoeff = sqr(week_sigma);
+    printf("%.8lg\n%.8g\n", normCoeff * result.profit, normCoeff * result.sigma);
     return 0;
 }
-
