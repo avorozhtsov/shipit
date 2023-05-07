@@ -6,3 +6,4 @@ calc_result.sh
 *.log
 .DS_Store
 .vscode
+memoise_shipit.nb
