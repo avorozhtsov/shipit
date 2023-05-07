@@ -2,7 +2,7 @@
 
 PYTHON=python
 
-default_pool_size=5
+default_pool_size=10
 default_weeks=30000000
 default_seed=2
 
@@ -101,6 +101,19 @@ function shipit_method {
             cmd="$PYTHON ./optimize.py --seed $seed --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
             cmds="$cmd\n$cmds"
         done
+    done
+    run_workers "$cmds"
+}
+
+function shipit_main {
+    cmds=""
+    m=${1:-"21"}
+    weeks=${2:-"$default_weeks"}
+    seed=${2:-"$default_seed"}
+    #for e in 2 3 4 6 8 9 10 14 15 16 20 22 32 35; do
+    for e in 3 12 25 30; do
+        cmd="$PYTHON ./optimize.py --prefix shipit_points/pt2_ --seed $seed --method $m --error $e --mean -1 --sigma 1 --weeks $weeks"
+        cmds="$cmd\n$cmds"
     done
     run_workers "$cmds"
 }
@@ -223,7 +236,7 @@ function print_results {
             done |
             perl -pe 's/ +/\t/g'
 
-    ) | sort -t$'\t' -gk3,3 -gk6,9 > t
+    ) | sort -t$'\t' -gk3,3 -gk6,9
 }
 
 

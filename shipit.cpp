@@ -32,17 +32,33 @@ double sqr(double val) {
 void help() {
     printf(
         "Usage: echo method seed weeks trials base_mean base_sigma week_sigma param1 param2 ... | ./shipit\n"
-        "  method: 1 = moss, 5 = p-value, 6 = g-value with ksi=0, 7 = g-value with ksi=manual\n"
+        "  method: 10, 11, ..., 15 = p-value, 20, 21 = moss, 30, 31 = g-value\n"
         "  seed = seed for random generator\n"
-        "  weeks = number of steps; typical value is 1000000\n"
+        "  weeks = number of steps; typical value is 10000000\n"
+        "  trials = number of cycles, each weeks steps; used for calculating profit std; use 25\n"
         "  base_mean = mean profit of a random idea; typical value is -1\n"
         "  base_sigma = sigma = sqrt(D) of profit for ideas in the pool; typical value is 1\n"
-        "  week_sigma = sigma of one measurement (aka error); typical value is 8\n"
-        "Example:\n"
-        "  echo \"7 123 100000 25 -1 1 8 1.0016535 0.746185 -0.019133\" | ./shipit\n\n"
-        "General form:\n"
-         "  echo \"$method $seed $weeks $trials $b_mean $b_sigma $error $p1 $p2 $p3 ..\" | ./shipit\n\n"
-        "It outputs two numbers: avg profit and standard deviation over trials.\n"
+        "  week_sigma = sigma of one measurement (aka error); for inst. 8\n\n"
+        "Examples:\n"
+        "  echo \"14 123 1000000 25 -1 1 16 1.4 0\" | ./shipit\n"
+        "  echo \"30 123 1000000 25 -1 1 16 0.746 1.0 -0.02\" | ./shipit\n\n"
+        "Output:\n"
+        "  Two numbers: avg profit and std of profit over trials.\n\n"
+        "Parameters:\n"
+        "  P-Value family - lines on the plane (mean, sigma)\n"
+        "    10: (ship_sigmas, stop_sigmas, sigma_mul, sigma_mul, max_test_weeks)\n"
+        "    11: (ship_sigmas, stop_sigmas); sigma_mul = 0, stop_mul = 0\n"
+        "    12: (ship_sigmas, stop_sigmas, sigma_mul); stop_mul = 1\n"
+        "    13: (ship_sigmas, stop_sigmas); stop_mul = 1, sigma_mul = auto\n"
+        "    14: (stop_sigmas, a); ship_sigmas = stop_sigmas + a; stop_mul=1, sigma_mul = auto\n"
+        "    15: (stop_sigmas); ship_sigmas = stop_sigmas; stop_mul = 1, sigma_mul = auto\n\n"
+        "  Moss-index\n"
+        "    20: (S, L, ship_sigmas, ksi)\n"
+        "    21: (S, L, ksi); ship_sigmas = auto\n\n"
+        "  g-index\n"
+        "    30: (S, ship_mul, ksi)\n"
+        "    31: (S, ship_mul); ksi = 0\n"
+        "    32: (S, ship_mul); ksi = auto\n"
     );
 }
 
@@ -489,12 +505,13 @@ main(int argc, char* argv[]) {
             scanf(
                 "%lf%lf%lf%lf%lf",
                 &params.ship_sigmas, &params.stop_sigmas, &params.sigma_mul,
-                &params.ship_mul, &params.max_test_weeks
+                &params.stop_mul, &params.max_test_weeks
             );
         } else if(method == 11) {
             // stopCnd = (mean + stop_sigmas * sigma < 0)
             // shipCnd = (mean - ship_sigmas * sigma > 0)
             params.stop_mul = 0.0;
+            params.sigma_mul = 0.0;
             scanf("%lf%lf", &params.ship_sigmas, &params.stop_sigmas);
         } else if(method == 12) {
             // stopCnd = (mean + stop_sigmas * sigma < base_mean + stop_sigmas * base_sigma)

@@ -176,7 +176,7 @@ def optimize_shipit(
         pt_method, pt_seed, pt_weeks, pt_trials, *_ = point
         if pt_weeks * pt_trials > weeks * trials:
             print("Stored point has greater weeks * trials. Break")
-            return
+            ## return
 
     x0 = point[xargs_len:]
 
@@ -186,39 +186,21 @@ def optimize_shipit(
 
     max_test_weeks = max(4, int(0.5 + 1.7 * (0.73 + float(error)) * (0.73 + float(error)) - 10))
 
-    if method == 20:
-        # Moss Index
-        # S, L, ship_sigmas, ksi
-        x0 = x0 or [1.55, 11.5, 0.66, 1.0, 1.6]
-        x0 = x0[0:5]
-        dimensions = [(0.5, 1.8), (8.0, 15.0), (0.5, 3.0), (0.0, 3.2)]
+    if method == 11:
+        # PValue Index
+        # [ship_sigmas, stop_sigmas, sigma_mul]
+        mean_r = - float(mean) / float(sigma)
+        x0 = x0 or [0.53, 1.8]
+        dimensions = [(0.3, 0.8), (1.1, 4.0)]
         x0s = [
             x0,
-            [1.5, 12.0, 2.1, 0.05], [1.45, 12.4, 1.62,  1.0],
-            [1.2, 11.7, 1.9, 0.03], [0.76, 12.0, 1.8, 2.06],
-            [0.8, 12.5, 1.933, 1.9], [1.3, 10.5, 1.79, 1.73],
-            [0.57, 13,  1.57, 2.016],  [0.584, 11.3, 1.818, 1.931],
-            [0.55, 13.01, 2.23, 2.116]
-        ]
-    elif method == 21:
-        # Moss Index
-        # [S, L, ksi]
-        x0 = x0 or [1.55, 11.5, 1.6]
-        x0 = x0[0:3]
-        dimensions = [(0.5, 1.8), (3.0, 15.0), (1.1, 3.2)]
-
-        def p1_fn(x):
-            return (-1 + math.sqrt(1 + 4 * x * x)) / (- 2 * x)
-
-        mean_f = float(mean)
-        x0s = [
-            x0,
-            [p1_fn(mean_f), 12.0, 1.5],
-            [p1_fn(mean_f), 11.0, 2.0],
-            [p1_fn(mean_f), 13.0, 2.5],
-            [1.5, 12.0, 0.05], [0.8, 12.5, 1.9],
-            [1.3, 10.5, 1.73], [0.57, 13,  2.016],
-            [0.584, 11.3, 1.931], [0.55, 13.01, 2.116]
+            [0.07, 0.99 * mean_r],
+            [0.5, 0.92 * mean_r],
+            [0.8, 0.93 * mean_r],
+            [0.6, 0.94 * mean_r],
+            [0.4, 0.95 * mean_r],
+            [0.66, 0.96 * mean_r],
+            [0.3, 0.99 * mean_r]
         ]
     elif method == 12:
         # PValue Index
@@ -285,7 +267,55 @@ def optimize_shipit(
             [2.05 * math.sqrt(mean_r), 0.0],
             [2.0 * math.sqrt(mean_r), 0.0],
         ]
+    elif method == 20:
+        # Moss Index
+        # S, L, ship_sigmas, ksi
+        x0 = x0 or [0.524, 3.82, 2.0, 3.62]
+        x0 = x0[0:4]
+        dimensions = [(0.5, 1.8), (0.5, 13.0), (0.5, 3.0), (0.0, 4.0)]
+        s, l, ship, ksi = x0
+        sigma0 = float(mean) / s + float(sigma)
+        ksi0 = x0[1] + math.log((float(sigma) + sigma0) / 2.0)
 
+        x0s = [
+            x0,
+            [x0[0], x0[1], x0[2], ksi0], [x0[0], x0[1], x0[2], 1.02 * ksi0],
+            [x0[0], x0[1], x0[2], 1.1 * ksi], [x0[0], x0[1], x0[2], 1.2 * ksi0],
+            [0.593, 12.0, 2.0, ksi], [0.553, 13.5, 2.0, ksi0],
+            [0.53, 13.8, 2.0, (ksi + ksi0)/2], [0.54, 14, 2.0, 2.2],
+            [0.57, 12.0, 2.1, ksi * 1.2], [0.563, 12.4, 1.62,  ksi * 0.96],
+            [0.58, 11.7, 1.9, ksi * 0.99], [0.572, 12.0, 1.8, 2.6],
+            [0.54, 12.5, 1.933, 1.9], [0.7, 10.5, 1.79, 2.7],
+            [0.566, 13,  1.57, 2.2],  [0.588, 11.3, 1.818, 2.22],
+            [1.3 * x0[0], 0.6 * x0[1], x0[2], ksi], [1.2 * x0[0], 0.7 * x0[1], x0[2], ksi]
+        ]
+    elif method == 21:
+        # Moss Index
+        # [S, L, ksi]
+        x0 = x0 or [0.53, 4.0, 3.5]
+        x0 = x0[0:3]
+        dimensions = [(0.5, 1.8), (0.5, 15.0), (1.1, 4.0)]
+        s, l, ksi = x0
+        sigma0 = float(mean) / s + float(sigma)
+        ksi0 = x0[1] + log((float(sigma) + sigma0) / 2.0)
+
+        def p1_fn(x):
+            return (-1 + math.sqrt(1 + 4 * x * x)) / (- 2 * x)
+
+        mean_f = float(mean)
+        x0s = [
+            x0,
+            [x0[0], x0[1], ksi0], [x0[0], x0[1], 1.02 * ksi0],
+            [x0[0], x0[1], 1.1 * ksi], [x0[0], x0[1], 1.2 * ksi0],
+            [p1_fn(mean_f), 3.0, 1.5],
+            [p1_fn(mean_f), 2.5, 2.3],
+            [p1_fn(mean_f), 12.0, 1.5],
+            [p1_fn(mean_f), 11.0, 2.0],
+            [p1_fn(mean_f), 13.0, 2.5],
+            [1.5, 12.0, 0.05], [0.8, 12.5, 1.9],
+            [1.3, 10.5, 1.73], [0.57, 13,  2.016],
+            [0.584, 11.3, 1.931], [0.55, 13.01, 2.116]
+        ]
     elif method == 30:
         # gValue
         # [S, shipMul, ksi]
