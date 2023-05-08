@@ -110,10 +110,12 @@ function shipit_main {
     m=${1:-"21"}
     weeks=${2:-"$default_weeks"}
     seed=${2:-"$default_seed"}
-    #for e in 2 3 4 6 8 9 10 14 15 16 20 22 32 35; do
-    for e in 3 12 25 30; do
-        cmd="$PYTHON ./optimize.py --prefix shipit_points/pt2_ --seed $seed --method $m --error $e --mean -1 --sigma 1 --weeks $weeks"
-        cmds="$cmd\n$cmds"
+    for e in 2 3 4 6 8 9 10 16 22 32 35; do
+    # for e in 3 12 25 30 35; do
+        for mean in -1 -0.5 -1.5; do
+            cmd="$PYTHON ./optimize.py --prefix shipit_points/pt2_ --seed $seed --method $m --error $e --mean $mean --sigma 1 --weeks $weeks"
+            cmds="$cmd\n$cmds"
+        done
     done
     run_workers "$cmds"
 }

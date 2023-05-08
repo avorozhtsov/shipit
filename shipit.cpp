@@ -101,9 +101,9 @@ public:
     int Weeks = 0;
 };
 
-
+// parameters for all methods & indexes
 struct TParams {
-    double S = 0.0;
+    double s = 0.0;
     double ship_sigmas = 0.0;
     double stop_sigmas = 0.0;
     double sigma_mul = 0.0;
@@ -111,7 +111,7 @@ struct TParams {
     double stop_mul = 0.0;
     double Epsilon = 0.0;
     double ksi = 0.0;
-    double L = 0.0;
+    double l = 0.0;
     double max_test_weeks = 0.0;
 };
 
@@ -123,7 +123,7 @@ struct TResult {
 /* a-la Gittins Index for Gaussian Processes */
 static inline double
 g_index(TIdea& idea, TParams& params) {
-    double sigma = params.S * idea.sigma;
+    double sigma = params.s * idea.sigma;
     double sigma2 = sqr(sigma);
     double mean = idea.mean;
     return (
@@ -136,13 +136,13 @@ g_index(TIdea& idea, TParams& params) {
 /*  a-la UCB1 function*/
 static inline double
 moss_index(TIdea& idea, TParams& params) {
-    return idea.mean + params.S * idea.sigma * sqrt(fmax(params.ksi, params.L + log(idea.sigma)));
+    return idea.mean + params.s * idea.sigma * sqrt(fmax(params.ksi, params.l + log(idea.sigma)));
 }
 
 /* Qn - fixed quantile */
 static inline double
 qn_index(TIdea& idea, TParams& params) {
-    return idea.mean + params.S * idea.sigma;
+    return idea.mean + params.s * idea.sigma;
 }
 
 
@@ -523,14 +523,14 @@ main(int argc, char* argv[]) {
             // ship && stop intersect at mean = 0
             params.stop_mul = 1.0;
             scanf("%lf%lf", &params.ship_sigmas, &params.stop_sigmas);
-            params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
+            params.sigma_mul = (base_mean / base_sigma /params.stop_sigmas + 1.0);
         } else if(method == 14) {
             // ship && stop intersect at mean = 0
             params.stop_mul = 1.0;
             double add_s = 0.0;
             scanf("%lf%lf", &params.stop_sigmas, &add_s);
             params.ship_sigmas = params.stop_sigmas + add_s;
-            params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
+            params.sigma_mul = (base_mean / base_sigma / params.stop_sigmas + 1.0);
         } else if(method == 15) {
             // ship && stop intersect at mean = 0
             // and ship_sigmas == stop_sigmas
@@ -543,22 +543,22 @@ main(int argc, char* argv[]) {
     } else if (method / 10 == 2) {
         // moss-index family
         params.stop_mul = 1.0; // fixed
-        params.S = 1.0;
-        params.L = 2.0;
+        params.s = 1.0;
+        params.l = 2.0;
         params.ship_sigmas = 0.6;
         params.ksi = 1.75;
         if (method == 20) {
-            scanf("%lf%lf%lf%lf", &params.S, &params.L, &params.ship_sigmas, &params.ksi);
+            scanf("%lf%lf%lf%lf", &params.s, &params.l, &params.ship_sigmas, &params.ksi);
         } else if (method == 21) {
-            scanf("%lf%lf%lf", &params.S, &params.L, &params.ksi);
-            params.ship_sigmas = params.S * sqrt(fmax(params.ksi, params.L + log(base_sigma)));
+            scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
+            params.ship_sigmas = params.s * sqrt(fmax(params.ksi, params.l + log(base_sigma)));
         }
-        double base_index_s = moss_index(base_idea, params) / params.S;
+        double base_index_s = moss_index(base_idea, params) / params.s;
         double sigma0 = 0.5 * base_sigma;
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.L + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
         params.sigma_mul = sigma0 / base_sigma;
         result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
 
@@ -568,14 +568,14 @@ main(int argc, char* argv[]) {
         params.ship_mul = 0.75;
         params.ksi = 0.015;
         if (method == 30) {
-            scanf("%lf%lf%lf", &params.S, &params.ship_mul, &params.ksi);
+            scanf("%lf%lf%lf", &params.s, &params.ship_mul, &params.ksi);
         } else if (method == 31) {
             params.ksi = 0.0;
-            scanf("%lf%lf", &params.S, &params.ship_mul);
+            scanf("%lf%lf", &params.s, &params.ship_mul);
         } else if (method == 32) {
-            scanf("%lf%lf", &params.S, &params.ship_mul);
+            scanf("%lf%lf", &params.s, &params.ship_mul);
             params.ksi = 0.0; // for g_index in the next line
-            params.ksi = - sqr(base_sigma * params.S) * g_index(base_idea, params);
+            params.ksi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
         }
         result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         // result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
@@ -584,7 +584,7 @@ main(int argc, char* argv[]) {
         help();
         return 1;
     }
-    double normCoeff = sqr(week_sigma);
-    printf("%.8lg\n%.8g\n", normCoeff * result.profit, normCoeff * result.sigma);
+    double norm_coeff = sqr(week_sigma);
+    printf("%.8lg\n%.8g\n", norm_coeff * result.profit, norm_coeff * result.sigma);
     return 0;
 }
