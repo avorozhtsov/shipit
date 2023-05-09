@@ -221,6 +221,15 @@ function calc_results {
     run_workers "$cmds" "$pool_size"
 }
 
+function update_mem_shipit {
+    cat mem_shipit_new.nb |
+        perl -pe 's/\n//g;' | 
+        perl -pe 's/ShipitM/\nShipit/g;' | 
+        perl -pe 's/ +/ /g' | 
+        perl -pe 's/\[ /\[/g;' | 
+        sort -u > mem_shipit.nb
+}
+
 
 # cats tab-separated points data with result and result_sigma two first columns
 function print_results {

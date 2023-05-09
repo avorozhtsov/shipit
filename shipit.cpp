@@ -288,7 +288,7 @@ eval_index_debug(
             idea.explore_week(rng, week_sigma, week_weight);
             trace.push_back(std::make_pair(idea.mean, idea.sigma));
             double idea_index = index_fn(idea, params);
-            if (idea_index <= base_index) {
+            if (idea_index <= 0.2 * base_index) {
                 /* if (idea.true_profit > 0) {
                     unshipped_positives += idea.true_profit;
                     unshipped_positives_prior += idea.mean;
@@ -422,9 +422,6 @@ eval_index_sym(
     double week_weight = 1.0 / sqr(week_sigma);
     TIdea base_idea{base_mean, base_sigma};
     double base_index = index_fn(base_idea, params);
-    // add mirror base_idea and its index
-    TIdea mirror_base_idea{-base_mean, base_sigma};
-    double mirror_base_index = index_fn(mirror_base_idea, params);
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
@@ -440,7 +437,7 @@ eval_index_sym(
                 // The only block that differs from eval_index
                 TIdea mirror_idea{-idea.mean, idea.sigma};
                 double mirror_idea_index = index_fn(mirror_idea, params);
-                if (mirror_idea_index <= mirror_base_index) {
+                if (mirror_idea_index <= base_index) {
                     // shipit!
                     shipped_profit += idea.true_profit;
                     idea.replace_with(rng, base_idea);
@@ -547,21 +544,25 @@ main(int argc, char* argv[]) {
         params.l = 2.0;
         params.ship_sigmas = 0.6;
         params.ksi = 1.75;
-        if (method == 20) {
-            scanf("%lf%lf%lf%lf", &params.s, &params.l, &params.ship_sigmas, &params.ksi);
-        } else if (method == 21) {
+        if (method == 20 || method == 21) {
+            if (method == 20) {
+                scanf("%lf%lf%lf%lf", &params.s, &params.l, &params.ship_sigmas, &params.ksi);
+            } else if (method == 21) {
+                scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
+                params.ship_sigmas = params.s * sqrt(fmax(params.ksi, params.l + log(base_sigma)));
+            }
+            double base_index_s = moss_index(base_idea, params) / params.s;
+            double sigma0 = 0.5 * base_sigma;
+            sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+            sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+            sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+            sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
+            params.sigma_mul = sigma0 / base_sigma;
+            result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        } else if (method == 25) {
             scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
-            params.ship_sigmas = params.s * sqrt(fmax(params.ksi, params.l + log(base_sigma)));
+            result = eval_index_sym(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         }
-        double base_index_s = moss_index(base_idea, params) / params.s;
-        double sigma0 = 0.5 * base_sigma;
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
-        sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
-        params.sigma_mul = sigma0 / base_sigma;
-        result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
-
     } else if (method / 10 == 3) {
         // g-index family
         params.stop_mul = 1.0;
@@ -577,8 +578,8 @@ main(int argc, char* argv[]) {
             params.ksi = 0.0; // for g_index in the next line
             params.ksi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
         }
-        result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
-        // result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        // result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
      } else {
         fprintf(stderr, "unknown method %d\n", method);
         help();
