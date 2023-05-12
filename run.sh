@@ -224,10 +224,10 @@ function calc_results {
 function update_mem_shipit {
     cat mem_shipit_new.nb |
         perl -pe 's/\n//g;' | 
-        perl -pe 's/ShipitM/\nShipit/g;' | 
-        perl -pe 's/ +/ /g' | 
+        perl -pe 's/ShipitM/\nShipitM/g;' | 
+        perl -pe 's/ +/ /g; s/\\//g' | 
         perl -pe 's/\[ /\[/g;' | 
-        sort -u > mem_shipit.nb
+        sort -u | perl -pe 's/ShipitM/\nShipitM/g;' > mem_shipit.nb
 }
 
 

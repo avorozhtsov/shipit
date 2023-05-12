@@ -544,7 +544,10 @@ main(int argc, char* argv[]) {
         params.l = 2.0;
         params.ship_sigmas = 0.6;
         params.ksi = 1.75;
-        if (method == 20 || method == 21) {
+        if (method == 25) { // symetrical cnds
+            scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
+            result = eval_index_sym(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        } else {
             if (method == 20) {
                 scanf("%lf%lf%lf%lf", &params.s, &params.l, &params.ship_sigmas, &params.ksi);
             } else if (method == 21) {
@@ -559,27 +562,31 @@ main(int argc, char* argv[]) {
             sigma0 = base_index_s / sqrt(fmax(params.ksi, params.l + log(sigma0)));
             params.sigma_mul = sigma0 / base_sigma;
             result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
-        } else if (method == 25) {
-            scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
-            result = eval_index_sym(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         }
     } else if (method / 10 == 3) {
         // g-index family
         params.stop_mul = 1.0;
         params.ship_mul = 0.75;
         params.ksi = 0.015;
-        if (method == 30) {
-            scanf("%lf%lf%lf", &params.s, &params.ship_mul, &params.ksi);
-        } else if (method == 31) {
-            params.ksi = 0.0;
-            scanf("%lf%lf", &params.s, &params.ship_mul);
-        } else if (method == 32) {
-            scanf("%lf%lf", &params.s, &params.ship_mul);
+        if (method == 35) {
+            scanf("%lf", &params.s);
             params.ksi = 0.0; // for g_index in the next line
             params.ksi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
+            result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        } else {
+            if (method == 30) {
+                scanf("%lf%lf%lf", &params.s, &params.ship_mul, &params.ksi);
+            } else if (method == 31) {
+                params.ksi = 0.0;
+                scanf("%lf%lf", &params.s, &params.ship_mul);
+            } else if (method == 32) {
+                scanf("%lf%lf", &params.s, &params.ship_mul);
+                params.ksi = 0.0; // for g_index in the next line
+                params.ksi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
+            }
+            result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            // result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         }
-        // result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
-        result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
      } else {
         fprintf(stderr, "unknown method %d\n", method);
         help();

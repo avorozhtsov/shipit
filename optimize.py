@@ -175,7 +175,7 @@ def optimize_shipit(
     if len(point) > 1:
         pt_method, pt_seed, pt_weeks, pt_trials, *_ = point
         if pt_weeks * pt_trials > weeks * trials:
-            print("Stored point has greater weeks * trials. Break")
+            print("Stored point has greater weeks * trials. Break?")
             ## return
 
     x0 = point[xargs_len:]
