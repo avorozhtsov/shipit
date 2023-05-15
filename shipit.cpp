@@ -544,7 +544,7 @@ main(int argc, char* argv[]) {
         params.l = 2.0;
         params.ship_sigmas = 0.6;
         params.ksi = 1.75;
-        if (method == 25) { 
+        if (method == 25) {
             // symetrical cnds
             scanf("%lf%lf%lf", &params.s, &params.l, &params.ksi);
             result = eval_index_sym(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
@@ -569,11 +569,16 @@ main(int argc, char* argv[]) {
         params.stop_mul = 1.0;
         params.ship_mul = 0.75;
         params.ksi = 0.015;
-        if (method == 35) { 
+        if (method == 35) {
             // symetrical cnds; identical to the method = 32 with ship_mul = 1.0
             scanf("%lf", &params.s);
             params.ksi = 0.0; // for g_index in the next line
             params.ksi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
+            result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        } else if (method == 36) {
+            // symetrical cnds;
+            params.s = 1.0;
+            scanf("%lf", &params.ksi);
             result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         } else {
             if (method == 30) {
