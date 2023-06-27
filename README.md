@@ -21,8 +21,8 @@ Here we are experimenting with sequential A/B testing approach aiming to maximis
 
 The main result is that having a posteriori values of $a$ and $\sigma$ of a version
 
-- the classic "launch" and "dicard" criteria  $a > z_{launch}\cdot \sigma$ and  $-a > z_{discard}\cdot \sigma$ are not effective for any constants $z_{launch}$ and $z_{discard}$;
-- the shifted linear criteria $a > z \cdot (\sigma - \sigma_{shift})$ and $-a > z \cdot (\sigma - \sigma_{shift})$ are very good but still not optimal, and constants $z$ and $\sigma_{shift}$ depends on $(a_0, \sigma_0^2)$ and the point $(a_0, \sigma_0)$ sits on the "discard" border;
+- the classic "launch" and "dicard" criteria  $a > z_{launch}\cdot \sigma$ and  $-a > z_{discard}\cdot \sigma$ are not effective for any constants $z_{launch}$ and $z_{discard}$ values;
+- the shifted linear criteria $a > z \cdot (\sigma - \sigma_{shift})$ and $-a > z \cdot (\sigma - \sigma_{shift})$ are very good but still not optimal;  constants $z$ and $\sigma_{shift}$ depend on $(a_0, \sigma_0^2)$ and the point $(a_0, \sigma_0)$ sits right on the "discard" border, so that majority of versions are discarded after the first observation;
 - the optimal criteria are $\sigma^2 \cdot \mathrm{PDF}(a, \sigma^2) + a \cdot \mathrm{CDF}(a, \sigma^2) -\xi /\sigma^2 < g_0$ and symmetrical condition with $-a$ instead of $a$; $g_0$ is the value of the right part for $(a, \sigma) = (a_0, \sigma_0)$, i.e. again, the point $(a_0, \sigma_0)$ sits on the "discard" border.
 
 ## Required
