@@ -2,30 +2,28 @@
 
 ## The Problem
 
-Imagine you have infinite pool of ideas (product features) to test. You need to A/B-test them, but you have limited number of users and, therefore, limited number of events they are generating. You can consequently test ideas one after another using different criteria for stopping experiments choosing between two verdicts "ship it" or "discard". What is the best criteria if you want to optimise profit per week?
+Imagine you have an infinite pool of versions (product features, ideas) to test. You need to A/B-test them, but you have limited number of users and, therefore, limited number of events they are generating. You can consequently test versions one after another using a criteria for stopping and choosing between two verdicts: "launch" or "discard". What is the best criteria if you want to optimise profit per time?
 
 ## Idea
 
-Companies typically optimise their product offerings using randomised controlled trials (RCTs) in industry parlance this is known as A/B testing.
-The rapid rise of A/B testing has led to the emergence of a number of widely used platforms that handle the implementation of these experiments.
+A/B testing is about testing versions of product and getting statistically significant answer to the question is the version better than control or not.
 
-A/B testing is about testing each idea of improving product and getting statistically significant answers about the hypothesis if an idea is useful or not.
+But experiments require resources: time and objects/users that you allocate to each experiment. So what is the best strategy for stopping experiment, launching and discarding versions when you have shortage of resources, and unlimited queue of versions to test? In fact, this could be viewed as one more statement of exploration vs exploitation problem. The well-known state-of-art approach to A/B testing with fixed sample size is to estimate the probability P[gain > 0], and launch if P[gain > 0] > P_threshold.  Fixed sample size test is not optimal. The intuition behind this is simple: some of the really bad and really good ideas can be discarded and launched earlier, before required sample size is achieved.
 
-But experiments require resources: time and objects/users that you allocate to each experiment experiment. So what is the best strategy for stopping experiment, shipping and discarding ideas when you have shortage of resources, and unlimited queue of ideas? In fact, this could be viewed as one more formulation of exploration vs exploitation problem. The well-known state-of-art approach for A/B testing with fixed size sample size is based on two conditions,  called significance and power conditions. To collect fixed size data usually you need fixed  period of time.  Fixed data size test is not optimal in the sense of minimising number of tested ideas in fied long period of time. The intuition for this is simple: some of really bad and really good ideas can be rejected and launched faster, before required (in average) data size is reached.
-
-Naive approach of continuously monitoring p-values does not work, and provide unreliable results. But there are approach for sequential analysis that provides always valid estimations of p-values of both hypotheses: "test is better than control" and "test is worse than control". It's an interesting mathematical result and tangible step toward practionieers' demand.
+The naive approach of continuously monitoring the value of P[gain > 0] does not work, and provides unreliable results. But there are approaches for sequential A/B-testing that provide valid predefined false rates of "launched" and "discarded" versions. This is an interesting mathematical result and a tangible step towards practioners' demands.
 
 But!!!
 
-But there is the second important thing from real world: sometimes there is no need  to threshold significance and power of a test. In fact, one's goal may be just to maximise profit of launched ideas for some long period of time. And it is quite reasonable goal.
+But there is second important thing from the real world: sometimes there is no need to bother about false rates. In fact, one's goal may be to maximise profit from launched versions over a long period of time. And it is quite reasonable goal.
 
 ## Results
-Here we experimenting with sequential A/B testing approach aiming to maximise profit where we do not bother about p-values of shipped ideas. We consider simple model where an ideas' relative profits are i.i.d gaussian random variables $\mathcal{N}(a_0, \sigma_0^2)$. Values $a_0$ and $\sigma_0$ are the only prior knowledge about any new idea.
+Here we are experimenting with sequential A/B testing approach aiming to maximise profit per time. And we do not bother about false rates of launched and rejected versions. We consider simple model where versions profit gains are i.i.d gaussian random variables $\mathcal{N}(a_0, \sigma_0^2)$. Values $a_0$ and $\sigma_0$ are the only prior knowledge about a new version.
 
-The main result is that having continuously monitoring a posteriori values $a$ and $\sigma$ of an idea
+The main result is that having a posteriori values of $a$ and $\sigma$ of a version
 
-- the condition $a > C_1\cdot \sigma + C_2$ is the best criterion for shipping, for some constants $C_1$ and $C_2$ depending on $(a_0, \sigma_0^2)$
-- the condition $\sigma^2 \cdot \mathrm{PDF}(a,\; \sigma^2) + a \cdot \mathrm{CDF}(a, \sigma^2) < g_0$, where $g_0 =\sigma_0^2 \cdot \mathrm{PDF}(a,\; \sigma_0^2) + a \cdot \mathrm{CDF}(a_0, \sigma_0^2) < g_0$ is the best criterion for discarding.
+- the classic "launch" and "dicard" criteria  $a > z_{launch}\cdot \sigma$ and  $-a > z_{discard}\cdot \sigma$ are not effective for any constants $z_{launch}$ and $z_{discard}$ values;
+- the shifted linear criteria $a > z \cdot (\sigma - \sigma_{shift})$ and $-a > z \cdot (\sigma - \sigma_{shift})$ are very good but still not optimal;  constants $z$ and $\sigma_{shift}$ depend on $(a_0, \sigma_0^2)$ and the point $(a_0, \sigma_0)$ sits right on the "discard" border, so that majority of versions are discarded after the first observation;
+- the optimal criteria are $\sigma^2 \cdot \mathrm{PDF}(a, \sigma^2) + a \cdot \mathrm{CDF}(a, \sigma^2) -\xi /\sigma^2 < g_0$ and symmetrical condition with $-a$ instead of $a$; $g_0$ is the value of the right part for $(a, \sigma) = (a_0, \sigma_0)$, i.e. again, the point $(a_0, \sigma_0)$ sits on the "discard" border.
 
 ## Required
 
