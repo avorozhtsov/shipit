@@ -10,8 +10,7 @@ std::random_device dev;
 
 class TRng {
 public:
-
-    std::mt19937 rng;
+    std::mt19937_64 rng;
     std::normal_distribution<> norm_g;
 
     TRng(int seed_val): rng(dev()), norm_g(0.0, 1.0) {
@@ -20,6 +19,14 @@ public:
 
     double nrand() {
         return norm_g(rng);
+    }
+
+    int rand() {
+        return rng();
+    }
+
+    void seed(int seed_val) {
+        rng.seed(seed_val);
     }
 };
 
@@ -78,27 +85,33 @@ public:
     };
 
     /* One week experiment updates _prior distribution */
-    void explore_week(TRng &rng, double week_sigma, double week_weight) {
-        double week_profit = true_profit + week_sigma * rng.nrand();
+    void explore_week(TRng &rng_idea, TRng &rng_world, double week_sigma, double week_weight) {
+        double week_profit = true_profit + week_sigma * rng_world.nrand();
         mean = (mean * weight + week_profit * week_weight) / (weight + week_weight);
         weight += week_weight;
         sigma = 1.0 / sqrt(weight);
-        Weeks++;
+        weeks++;
     }
 
-    void replace_with(TRng &rng, const TIdea& pool) {
+    void replace_with_new(TRng &rng_idea, TRng &rng_world, const TIdea& pool) {
         mean = pool.mean;
         sigma = pool.sigma;
         weight = pool.weight;
-        true_profit = mean + sigma * rng.nrand();
-        Weeks = 0;
+        true_profit = mean + sigma * rng_idea.nrand();
+
+        // it doubles run time for m=14!!! but make comparison more fair
+        rng_world.seed(rng_idea.rand());
+
+        // this descreases number of rng calls, but time is the same
+        // rng_world.seed(*((int*)&true_profit));
+        weeks = 0;
     }
 
     double mean = 0;
     double sigma = 1;
     double weight = 1;
     double true_profit = 0;
-    int Weeks = 0;
+    int weeks = 0;
 };
 
 // parameters for all methods & indexes
@@ -160,7 +173,8 @@ General case:
 */
 static TResult
 eval_pvalue(
-    TRng &rng, int weeks, int trials,
+    TRng &rng_idea, TRng &rng_world,
+    int weeks, int trials,
     double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
@@ -174,25 +188,25 @@ eval_pvalue(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.replace_with(rng, base_idea);
+        idea.replace_with_new(rng_idea, rng_world, base_idea);
         double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.explore_week(rng, week_sigma, week_weight);
+            idea.explore_week(rng_idea, rng_world, week_sigma, week_weight);
             double qn_base_index = base_idea.mean + base_idea.sigma * params.stop_sigmas;
             double qn_index = idea.mean + idea.sigma * params.stop_sigmas;
             if (
                 qn_index < params.stop_mul * qn_base_index
-                || (idea.Weeks > params.max_test_weeks && idea.mean < 0)
+                || (idea.weeks > params.max_test_weeks && idea.mean < 0)
             ) {
                 // stop & discard
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } else if (
                 idea.mean > (idea.sigma - sigma0) * params.ship_sigmas
-                || (idea.Weeks > params.max_test_weeks)
+                || (idea.weeks > params.max_test_weeks)
             ) {
                 // shipit!
                 shipped_profit += idea.true_profit;
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } // else continue exploration
         }
         double avg_profit = shipped_profit / weeks;
@@ -213,7 +227,8 @@ Hint: p.stop_mul == 1 is the best
 template <typename Tindex_fn>
 static TResult
 eval_index(
-    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    TRng &rng_idea, TRng &rng_world,
+    Tindex_fn index_fn, int weeks, int trials,
     double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
@@ -227,18 +242,18 @@ eval_index(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.replace_with(rng, base_idea);
+        idea.replace_with_new(rng_idea, rng_world, base_idea);
         double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.explore_week(rng, week_sigma, week_weight);
+            idea.explore_week(rng_idea, rng_world, week_sigma, week_weight);
             double idea_index = index_fn(idea, params);
             if (idea_index <= base_index) {
                 // stop & discard
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } else if (idea.mean >= idea_index * params.ship_mul) {
                 // shipit!
                 shipped_profit += idea.true_profit;
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } // else continue exploration
         }
         double avg_profit = shipped_profit / weeks;
@@ -255,7 +270,8 @@ eval_index(
 template <typename Tindex_fn>
 static TResult
 eval_index_debug(
-    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    TRng &rng_idea, TRng &rng_world,
+    Tindex_fn index_fn, int weeks, int trials,
     double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
@@ -283,11 +299,11 @@ eval_index_debug(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.replace_with(rng, base_idea);
+        idea.replace_with_new(rng_idea, rng_world, base_idea);
         double shipped_profit = 0;
         //step = 1;
         for (int week = 0; week < weeks; ++week) {
-            idea.explore_week(rng, week_sigma, week_weight);
+            idea.explore_week(rng_idea, rng_world, week_sigma, week_weight);
             trace.push_back(std::make_pair(idea.mean, idea.sigma));
             double idea_index = index_fn(idea, params);
             if (idea_index <= 0.2 * base_index) {
@@ -311,7 +327,7 @@ eval_index_debug(
                     max_trace_size = std::max(max_trace_size, trace.size());
                 }
                 trace.clear();
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
                 //stop[step]++; step = 0;
             } else if (idea.mean >= idea_index * params.ship_mul) {
                 /*
@@ -319,7 +335,7 @@ eval_index_debug(
                      shipped_negatives += idea.true_profit; shipped_negatives_count++;
                 }*/
                 shipped_profit += idea.true_profit;
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
                 if (
                     max_trace_size + 10 < trace.size()
                     || (trace.size() > 25 && trace_count < 6)
@@ -369,7 +385,8 @@ eval_index_debug(
 template <typename Tindex_fn>
 static TResult
 eval_index_pvalue(
-    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    TRng &rng_idea, TRng &rng_world,
+    Tindex_fn index_fn, int weeks, int trials,
     double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
@@ -384,20 +401,20 @@ eval_index_pvalue(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.replace_with(rng, base_idea);
+        idea.replace_with_new(rng_idea, rng_world, base_idea);
         double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.explore_week(rng, week_sigma, week_weight);
+            idea.explore_week(rng_idea, rng_world, week_sigma, week_weight);
             double idea_index = index_fn(idea, params);
             if (idea_index <= base_index) {
                 // stop & discard
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } else {
                 // The only block that differs from eval_index
                 if (idea.mean > (idea.sigma - sigma0) * params.ship_sigmas) {
                     // shipit!
                     shipped_profit += idea.true_profit;
-                    idea.replace_with(rng, base_idea);
+                    idea.replace_with_new(rng_idea, rng_world, base_idea);
                  } // else continue exploration
             }
         }
@@ -413,7 +430,8 @@ eval_index_pvalue(
 template <typename Tindex_fn>
 static TResult
 eval_index_sym(
-    TRng &rng, Tindex_fn index_fn, int weeks, int trials,
+    TRng &rng_idea, TRng &rng_world,
+    Tindex_fn index_fn, int weeks, int trials,
     double base_mean, double base_sigma, double week_sigma,
     TParams& params
 ) {
@@ -427,14 +445,14 @@ eval_index_sym(
 
     for (int trial = 0; trial < trials; ++trial) {
         TIdea idea;
-        idea.replace_with(rng, base_idea);
+        idea.replace_with_new(rng_idea, rng_world, base_idea);
         double shipped_profit = 0;
         for (int week = 0; week < weeks; ++week) {
-            idea.explore_week(rng, week_sigma, week_weight);
+            idea.explore_week(rng_idea, rng_world, week_sigma, week_weight);
             double idea_index = index_fn(idea, params);
             if (idea_index <= base_index) {
                 // stop & discard
-                idea.replace_with(rng, base_idea);
+                idea.replace_with_new(rng_idea, rng_world, base_idea);
             } else {
                 // The only block that differs from eval_index
                 TIdea mirror_idea{-idea.mean, idea.sigma};
@@ -442,7 +460,7 @@ eval_index_sym(
                 if (mirror_idea_index <= base_index) {
                     // shipit!
                     shipped_profit += idea.true_profit;
-                    idea.replace_with(rng, base_idea);
+                    idea.replace_with_new(rng_idea, rng_world, base_idea);
                  } // else continue exploration
             }
         }
@@ -480,7 +498,8 @@ main(int argc, char* argv[]) {
         seed = time(nullptr);
     }
 
-    TRng rng = TRng(seed);
+    TRng rng_idea = TRng(seed);
+    TRng rng_world = TRng(seed + 1);
 
     if (trials <= 1) {
         fprintf(stderr, "WARN: trials should be >= 2");
@@ -538,7 +557,7 @@ main(int argc, char* argv[]) {
             params.stop_sigmas = params.ship_sigmas;
             params.sigma_mul = (base_mean / base_sigma + params.stop_sigmas) / params.stop_sigmas;
         }
-        result = eval_pvalue(rng, weeks, trials, base_mean, base_sigma, week_sigma, params);
+        result = eval_pvalue(rng_idea, rng_world, weeks, trials, base_mean, base_sigma, week_sigma, params);
     } else if (method / 10 == 2) {
         // moss-index family
         params.stop_mul = 1.0; // fixed
@@ -549,7 +568,7 @@ main(int argc, char* argv[]) {
         if (method == 25) {
             // symetrical cnds
             scanf("%lf%lf%lf", &params.s, &params.l, &params.xi);
-            result = eval_index_sym(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index_sym(rng_idea, rng_world, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         } else {
             if (method == 20) {
                 scanf("%lf%lf%lf%lf", &params.s, &params.l, &params.ship_sigmas, &params.xi);
@@ -564,7 +583,7 @@ main(int argc, char* argv[]) {
             sigma0 = base_index_s / sqrt(fmax(params.xi, params.l + log(sigma0)));
             sigma0 = base_index_s / sqrt(fmax(params.xi, params.l + log(sigma0)));
             params.sigma_mul = sigma0 / base_sigma;
-            result = eval_index_pvalue(rng, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index_pvalue(rng_idea, rng_world, moss_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         }
     } else if (method / 10 == 3) {
         // g-index family
@@ -577,17 +596,17 @@ main(int argc, char* argv[]) {
             scanf("%lf", &params.s);
             params.xi = 0.0; // for g_index in the next line
             params.xi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
-            result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index_sym(rng_idea, rng_world, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         } else if (method == 36) {
             // symetrical cnds;
             params.s = 1.0;
             scanf("%lf", &params.xi);
-            result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index_sym(rng_idea, rng_world, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         } else if (method == 37) {
             // symetrical cnds with nonzero beta;
             params.s = 1.0;
             scanf("%lf%lf", &params.xi, &params.beta);
-            result = eval_index_sym(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index_sym(rng_idea, rng_world, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         } else {
             if (method == 30) {
                 scanf("%lf%lf%lf", &params.s, &params.ship_mul, &params.xi);
@@ -599,8 +618,8 @@ main(int argc, char* argv[]) {
                 params.xi = 0.0; // for g_index in the next line
                 params.xi = - sqr(base_sigma * params.s) * g_index(base_idea, params);
             }
-            result = eval_index(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
-            // result = eval_index_debug(rng, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            result = eval_index(rng_idea, rng_world, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
+            // result = eval_index_debug(rng_idea, g_index, weeks, trials, base_mean, base_sigma, week_sigma, params);
         }
      } else {
         fprintf(stderr, "unknown method %d\n", method);
